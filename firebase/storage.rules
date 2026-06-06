@@ -1,0 +1,68 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserOrg() {
+      return request.auth.token.organizationId;
+    }
+
+    function hasRole(roles) {
+      return request.auth.token.role in roles;
+    }
+
+    // =============================
+    // Dataset uploads (CSV/JSON)
+    // Path: /datasets/{orgId}/{userId}/{filename}
+    // =============================
+    match /datasets/{orgId}/{userId}/{filename} {
+      allow read: if isAuthenticated() &&
+        getUserOrg() == orgId &&
+        hasRole(['owner', 'admin', 'analyst']);
+
+      allow write: if isAuthenticated() &&
+        getUserOrg() == orgId &&
+        hasRole(['owner', 'admin']) &&
+        request.auth.uid == userId &&
+        // Only allow CSV and JSON files
+        (filename.matches('.*\\.csv') || filename.matches('.*\\.json')) &&
+        // Max 50MB
+        request.resource.size < 50 * 1024 * 1024;
+
+      allow delete: if isAuthenticated() &&
+        getUserOrg() == orgId &&
+        hasRole(['owner', 'admin']);
+    }
+
+    // =============================
+    // Site maps / floor plans
+    // Path: /maps/{orgId}/{siteId}/{filename}
+    // =============================
+    match /maps/{orgId}/{siteId}/{filename} {
+      allow read: if isAuthenticated() && getUserOrg() == orgId;
+
+      allow write: if isAuthenticated() &&
+        getUserOrg() == orgId &&
+        hasRole(['owner', 'admin']) &&
+        // Only images
+        (filename.matches('.*\\.png') || filename.matches('.*\\.jpg') ||
+         filename.matches('.*\\.jpeg') || filename.matches('.*\\.svg')) &&
+        // Max 10MB
+        request.resource.size < 10 * 1024 * 1024;
+
+      allow delete: if isAuthenticated() &&
+        getUserOrg() == orgId &&
+        hasRole(['owner', 'admin']);
+    }
+
+    // Block all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

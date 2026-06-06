@@ -1,0 +1,198 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =============================
+    // Helper Functions
+    // =============================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.isSuperAdmin == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isSuperAdmin == true)
+      );
+    }
+
+    function getUserOrg() {
+      return request.auth.token.organizationId != null
+        ? request.auth.token.organizationId
+        : get(/databases/$(database)/documents/users/$(request.auth.uid)).data.organizationId;
+    }
+
+    function getUserRole() {
+      return request.auth.token.role != null
+        ? request.auth.token.role
+        : get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function belongsToOrg(orgId) {
+      return isAuthenticated() && getUserOrg() == orgId;
+    }
+
+    function hasRole(roles) {
+      return isAuthenticated() && getUserRole() in roles;
+    }
+
+    function hasOrgRole(orgId, roles) {
+      return belongsToOrg(orgId) && hasRole(roles);
+    }
+
+    function isOwnerOrAdmin(orgId) {
+      return hasOrgRole(orgId, ['owner', 'admin']);
+    }
+
+    function canRead(orgId) {
+      return hasOrgRole(orgId, ['owner', 'admin', 'analyst', 'viewer']);
+    }
+
+    function canWrite(orgId) {
+      return hasOrgRole(orgId, ['owner', 'admin']);
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp;
+    }
+
+    // =============================
+    // Users
+    // =============================
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isSuperAdmin()
+      );
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isSuperAdmin()
+      );
+      allow delete: if isSuperAdmin();
+    }
+
+    // =============================
+    // Organizations
+    // =============================
+    match /organizations/{orgId} {
+      allow read: if canRead(orgId) || isSuperAdmin();
+      allow create: if isAuthenticated(); // any auth user can create an org
+      allow update: if isOwnerOrAdmin(orgId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
+    }
+
+    // =============================
+    // Organization Members
+    // =============================
+    match /organizationMembers/{memberId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow create: if isOwnerOrAdmin(request.resource.data.organizationId) || isSuperAdmin();
+      allow update: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+    }
+
+    // =============================
+    // Sites
+    // =============================
+    match /sites/{siteId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow create: if canWrite(request.resource.data.organizationId) || isSuperAdmin();
+      allow update: if canWrite(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+    }
+
+    // =============================
+    // Zones
+    // =============================
+    match /zones/{zoneId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow create: if canWrite(request.resource.data.organizationId) || isSuperAdmin();
+      allow update: if canWrite(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+    }
+
+    // =============================
+    // Sensors
+    // =============================
+    match /sensors/{sensorId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow create: if canWrite(request.resource.data.organizationId) || isSuperAdmin();
+      allow update: if canWrite(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+    }
+
+    // =============================
+    // Sensor Streams (raw CSI — short TTL, restricted)
+    // Written only by Cloud Functions
+    // =============================
+    match /sensorStreams/{streamId} {
+      allow read: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isSuperAdmin();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // =============================
+    // Detections (anonymized events)
+    // Written only by Cloud Functions
+    // =============================
+    match /detections/{detectionId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // =============================
+    // Alerts
+    // =============================
+    match /alerts/{alertId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      // Acknowledge/resolve allowed by analysts and above via Cloud Functions
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // =============================
+    // Consent Profiles (sensitive — explicit consent)
+    // =============================
+    match /consentProfiles/{profileId} {
+      allow read: if (
+        isOwnerOrAdmin(resource.data.organizationId) ||
+        request.auth.uid == resource.data.subjectUserId
+      ) || isSuperAdmin();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // =============================
+    // Audit Logs (append-only via Cloud Functions)
+    // =============================
+    match /auditLogs/{logId} {
+      allow read: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // =============================
+    // Simulation Runs
+    // =============================
+    match /simulationRuns/{runId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow write: if false; // Only Cloud Functions can write
+    }
+
+    // =============================
+    // Billing Plans (global config — read-only for all auth users)
+    // =============================
+    match /billingPlans/{planId} {
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin();
+    }
+
+    // =============================
+    // Feature Flags (per-org)
+    // =============================
+    match /featureFlags/{flagId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow write: if isSuperAdmin();
+    }
+  }
+}
