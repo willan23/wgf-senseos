@@ -141,12 +141,11 @@ export default function LandingPage() {
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 32, height: 32, borderRadius: 8,
-              background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 16
-            }}>📡</div>
+            <img 
+              src="/logo.jpg" 
+              alt="Logo" 
+              style={{ width: 32, height: 32, borderRadius: 8, objectFit: 'cover' }} 
+            />
             <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
               WGF <span style={{ color: 'var(--accent-primary)' }}>SenseOS</span>
             </span>

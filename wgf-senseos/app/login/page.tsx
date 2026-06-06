@@ -58,11 +58,11 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, textDecoration: 'none', marginBottom: 16 }}>
-            <div style={{
-              width: 40, height: 40, borderRadius: 10,
-              background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-            }}>📡</div>
+            <img 
+              src="/logo.jpg" 
+              alt="Logo" 
+              style={{ width: 40, height: 40, borderRadius: 10, objectFit: 'cover' }} 
+            />
             <span style={{ fontSize: 22, fontWeight: 900, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
               WGF <span style={{ color: 'var(--accent-primary)' }}>SenseOS</span>
             </span>

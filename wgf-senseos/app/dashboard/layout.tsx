@@ -61,11 +61,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Logo */}
         <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: 6,
-              background: 'linear-gradient(135deg, #00d4ff, #7c3aed)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-            }}>📡</div>
+            <img 
+              src="/logo.jpg" 
+              alt="Logo" 
+              style={{ width: 28, height: 28, borderRadius: 6, objectFit: 'cover' }} 
+            />
             <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)' }}>
               WGF <span style={{ color: 'var(--accent-primary)' }}>SenseOS</span>
             </span>
