@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@uwsc/core/*": ["../packages/uwsc-core/src/*"],
+      "@uwsc/simulator/*": ["../packages/uwsc-simulator/src/*"],
+      "@uwsc/edge-protocol/*": ["../packages/uwsc-edge-protocol/src/*"],
+      "@uwsc/privacy-core/*": ["../packages/uwsc-privacy-core/src/*"]
     }
   },
   "include": [
@@ -28,7 +32,8 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "../packages/**/*.ts"
   ],
   "exclude": ["node_modules"]
 }

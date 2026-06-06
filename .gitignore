@@ -1,3 +1,13 @@
+# ============================================================
+# FICHEIROS PRIVADOS — NUNCA DEVEM IR PARA O REPOSITÓRIO
+# ============================================================
+# Documentos de planeamento e conversas com IA (internos)
+gemini.md
+pro.md
+prompt.md
+*.pdf
+
+# ============================================================
 # dependencies
 **/node_modules
 .pnp
