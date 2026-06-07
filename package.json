@@ -1,6 +1,10 @@
 {
   "name": "wgf-senseos-root",
   "private": true,
+  "workspaces": [
+    "wgf-senseos",
+    "packages/*"
+  ],
   "dependencies": {
     "protobufjs": "^7.3.0",
     "snarkjs": "^0.7.6"
