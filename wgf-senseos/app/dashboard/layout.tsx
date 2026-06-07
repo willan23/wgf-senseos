@@ -98,12 +98,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <div className="divider" />
 
-          <Link href="/admin" style={{ textDecoration: 'none' }}>
-            <div className={`sidebar-item ${pathname.startsWith('/admin') ? 'active' : ''}`}>
-              <span style={{ fontSize: 16 }}>🛡️</span>
-              <span>Admin</span>
-            </div>
-          </Link>
+          {senseUser?.isSuperAdmin === true && (
+            <Link href="/admin" style={{ textDecoration: 'none' }}>
+              <div className={`sidebar-item ${pathname.startsWith('/admin') ? 'active' : ''}`}>
+                <span style={{ fontSize: 16 }}>🛡️</span>
+                <span>Admin</span>
+              </div>
+            </Link>
+          )}
         </nav>
 
         {/* User info */}

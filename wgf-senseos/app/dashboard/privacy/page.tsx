@@ -8,7 +8,7 @@ import type { AuditLog } from '@uwsc/core/types';
 
 export default function PrivacyPage() {
   const { senseUser, user } = useAuth();
-  const organizationId = senseUser?.organizationId || 'org_demo';
+  const organizationId = senseUser?.organizationId;
 
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);

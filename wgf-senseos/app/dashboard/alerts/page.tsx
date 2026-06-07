@@ -24,7 +24,7 @@ const statusLabel = { open: 'Aberto', acknowledged: 'Reconhecido', resolved: 'Re
 
 export default function AlertsPage() {
   const { senseUser } = useAuth();
-  const organizationId = senseUser?.organizationId || 'org_demo';
+  const organizationId = senseUser?.organizationId;
 
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);

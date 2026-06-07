@@ -8,7 +8,7 @@ import type { Sensor, Site } from '@uwsc/core/types';
 
 export default function SensorsPage() {
   const { senseUser } = useAuth();
-  const organizationId = senseUser?.organizationId || 'org_demo';
+  const organizationId = senseUser?.organizationId;
 
   const [sensors, setSensors] = useState<Sensor[]>([]);
   const [sites, setSites] = useState<Site[]>([]);

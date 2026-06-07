@@ -21,8 +21,8 @@ interface DatasetMetadata {
 
 export default function LabDatasetsPage() {
   const { senseUser } = useAuth();
-  const organizationId = senseUser?.organizationId || 'org_demo';
-  const userId = senseUser?.uid || 'user_demo';
+  const organizationId = senseUser?.organizationId;
+  const userId = senseUser?.uid;
 
   const [datasets, setDatasets] = useState<DatasetMetadata[]>([]);
   const [loading, setLoading] = useState(true);

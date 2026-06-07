@@ -8,7 +8,7 @@ import type { Site } from '@uwsc/core/types';
 
 export default function SitesPage() {
   const { senseUser } = useAuth();
-  const organizationId = senseUser?.organizationId || 'org_demo';
+  const organizationId = senseUser?.organizationId;
 
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);

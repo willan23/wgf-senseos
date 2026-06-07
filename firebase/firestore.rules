@@ -129,18 +129,22 @@ service cloud.firestore {
     // Sensor Streams (raw CSI — short TTL, restricted)
     // Written only by Cloud Functions
     // =============================
+    // =============================
+    // Sensor Streams (raw CSI — short TTL, restricted)
+    // =============================
     match /sensorStreams/{streamId} {
       allow read: if hasOrgRole(resource.data.organizationId, ['owner', 'admin']) || isSuperAdmin();
-      allow write: if false; // Only Cloud Functions can write
+      allow create: if exists(/databases/$(database)/documents/sensors/$(request.resource.data.sensorId)) || isSuperAdmin();
+      allow update, delete: if isSuperAdmin();
     }
 
     // =============================
     // Detections (anonymized events)
-    // Written only by Cloud Functions
     // =============================
     match /detections/{detectionId} {
       allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
-      allow write: if false; // Only Cloud Functions can write
+      allow create: if exists(/databases/$(database)/documents/sensors/$(request.resource.data.sensorId)) || isSuperAdmin();
+      allow update, delete: if isSuperAdmin();
     }
 
     // =============================
@@ -148,8 +152,9 @@ service cloud.firestore {
     // =============================
     match /alerts/{alertId} {
       allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
-      // Acknowledge/resolve allowed by analysts and above via Cloud Functions
-      allow write: if false; // Only Cloud Functions can write
+      allow create: if exists(/databases/$(database)/documents/sensors/$(request.resource.data.sensorId)) || isSuperAdmin();
+      allow update: if canWrite(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // =============================
@@ -160,15 +165,16 @@ service cloud.firestore {
         isOwnerOrAdmin(resource.data.organizationId) ||
         request.auth.uid == resource.data.subjectUserId
       ) || isSuperAdmin();
-      allow write: if false; // Only Cloud Functions can write
+      allow write: if isSuperAdmin();
     }
 
     // =============================
-    // Audit Logs (append-only via Cloud Functions)
+    // Audit Logs
     // =============================
     match /auditLogs/{logId} {
       allow read: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
-      allow write: if false; // Only Cloud Functions can write
+      allow create: if belongsToOrg(request.resource.data.organizationId) || isSuperAdmin();
+      allow update, delete: if isSuperAdmin();
     }
 
     // =============================
@@ -176,7 +182,28 @@ service cloud.firestore {
     // =============================
     match /simulationRuns/{runId} {
       allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
-      allow write: if false; // Only Cloud Functions can write
+      allow create: if canWrite(request.resource.data.organizationId) || isSuperAdmin();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    // =============================
+    // Datasets
+    // =============================
+    match /datasets/{datasetId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow create: if canWrite(request.resource.data.organizationId) || isSuperAdmin();
+      allow update: if canWrite(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isOwnerOrAdmin(resource.data.organizationId) || isSuperAdmin();
+    }
+
+    // =============================
+    // Data Subject Requests (GDPR)
+    // =============================
+    match /dataSubjectRequests/{requestId} {
+      allow read: if canRead(resource.data.organizationId) || isSuperAdmin();
+      allow create: if belongsToOrg(request.resource.data.organizationId) || isSuperAdmin();
+      allow update: if canWrite(resource.data.organizationId) || isSuperAdmin();
+      allow delete: if isSuperAdmin();
     }
 
     // =============================
