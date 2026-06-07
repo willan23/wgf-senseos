@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
       "@uwsc/edge-protocol": path.resolve(__dirname, "../packages/uwsc-edge-protocol/src"),
       "@uwsc/privacy-core": path.resolve(__dirname, "../packages/uwsc-privacy-core/src"),
     };
+    config.resolve.modules = [
+      ...(config.resolve.modules || []),
+      path.resolve(__dirname, "node_modules"),
+    ];
     return config;
   }
 };
