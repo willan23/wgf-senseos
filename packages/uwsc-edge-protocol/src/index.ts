@@ -264,3 +264,6 @@ export function isInferenceEventMessage(msg: MessageEnvelope): msg is InferenceE
 export function isAlertEventMessage(msg: MessageEnvelope): msg is AlertEventMessage {
   return msg.type === 'alert_event';
 }
+
+export * from './proto';
+

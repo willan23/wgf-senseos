@@ -1,6 +1,97 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/contexts/AuthContext';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, addDoc, doc, limit } from 'firebase/firestore';
+import type { AuditLog } from '@uwsc/core/types';
+
 export default function PrivacyPage() {
+  const { senseUser, user } = useAuth();
+  const organizationId = senseUser?.organizationId || 'org_demo';
+
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [requestSubmitted, setRequestSubmitted] = useState(false);
+  const [requestType, setRequestType] = useState<'erasure' | 'portability'>('erasure');
+
+  // Load audit logs from Firestore
+  useEffect(() => {
+    if (!db || !organizationId) return;
+
+    const q = query(
+      collection(db, 'auditLogs'),
+      where('organizationId', '==', organizationId),
+      limit(10)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list: AuditLog[] = [];
+      snapshot.forEach((doc) => {
+        list.push({ id: doc.id, ...doc.data() } as AuditLog);
+      });
+      list.sort((a, b) => b.timestamp - a.timestamp);
+      setLogs(list);
+      setLoading(false);
+    }, (err) => {
+      console.error("Error fetching audit logs:", err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [organizationId]);
+
+  // Log accesses to this page (GDPR audit trail)
+  useEffect(() => {
+    if (!db || !organizationId || !senseUser) return;
+
+    const logAccess = async () => {
+      try {
+        await addDoc(collection(db, 'auditLogs'), {
+          organizationId,
+          userId: senseUser.uid,
+          action: 'VIEW_PRIVACY_DASHBOARD',
+          resource: 'privacySettings',
+          timestamp: Date.now(),
+          ipAddress: '127.0.0.1',
+        });
+      } catch (err) {
+        console.error("Error recording audit log:", err);
+      }
+    };
+
+    logAccess();
+  }, [organizationId, senseUser]);
+
+  const handleSubmitGDPRRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db || !organizationId || !senseUser) return;
+
+    try {
+      await addDoc(collection(db, 'dataSubjectRequests'), {
+        organizationId,
+        userId: senseUser.uid,
+        type: requestType,
+        status: 'pending',
+        requestedAt: Date.now(),
+        requestedBy: senseUser.email,
+      });
+
+      // Record in audit log
+      await addDoc(collection(db, 'auditLogs'), {
+        organizationId,
+        userId: senseUser.uid,
+        action: `SUBMIT_GDPR_${requestType.toUpperCase()}_REQUEST`,
+        resource: 'dataSubjectRequests',
+        timestamp: Date.now(),
+      });
+
+      setRequestSubmitted(true);
+    } catch (err) {
+      console.error("Error submitting GDPR request:", err);
+    }
+  };
+
   return (
     <div style={{ flex: 1, padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 800 }}>
       <div>
@@ -38,16 +129,6 @@ export default function PrivacyPage() {
           desc: 'Toda a recolha de dados biométricos (padrões de caminhada identificáveis) é classificada como "dado sensível" conforme o GDPR Art. 9. O sistema implementa minimização de dados, limitação de finalidade e registo de auditoria de acesso a dados sensíveis.',
           color: '#10d98a',
         },
-        {
-          icon: '✍️', title: 'Consentimento Explícito',
-          desc: 'Perfis de identificação de pessoas conhecidas (Consent Profiles) só podem ser criados com consentimento explícito documentado. O titular dos dados pode revogar o consentimento e eliminar o seu perfil a qualquer momento.',
-          color: '#f59e0b',
-        },
-        {
-          icon: '📊', title: 'Dados Agregados para Empresas',
-          desc: 'No modo Corporativo, os colaboradores são representados como "presença anónima" por padrão. Os gestores veem apenas contagens, fluxos e mapas de calor — nunca dados que identifiquem indivíduos sem autorização explícita.',
-          color: '#00d4ff',
-        },
       ].map(item => (
         <div key={item.title} className="glass-card" style={{ padding: 22 }}>
           <div style={{ display: 'flex', gap: 14 }}>
@@ -64,42 +145,67 @@ export default function PrivacyPage() {
         </div>
       ))}
 
-      {/* Audit log section */}
+      {/* GDPR Data Subject Requests Form */}
       <div className="glass-card" style={{ padding: 22 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📋 Registo de Auditoria (Audit Log)</h2>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Ação</th>
-              <th>Utilizador</th>
-              <th>Recurso</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { time: new Date(Date.now() - 5000).toLocaleTimeString('pt-PT'), action: 'VIEW_DETECTIONS', user: 'utilizador@demo.com', resource: 'detections' },
-              { time: new Date(Date.now() - 60000).toLocaleTimeString('pt-PT'), action: 'LOGIN', user: 'utilizador@demo.com', resource: 'auth' },
-              { time: new Date(Date.now() - 3600000).toLocaleTimeString('pt-PT'), action: 'SIMULATION_START', user: 'utilizador@demo.com', resource: 'simulationRuns' },
-            ].map((row, i) => (
-              <tr key={i}>
-                <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>{row.time}</td>
-                <td><span className="badge badge-cyan" style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>{row.action}</span></td>
-                <td style={{ fontSize: 12 }}>{row.user}</td>
-                <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{row.resource}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>✍️ Direitos do Titular (GDPR Art. 15-17)</h2>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+          Podes solicitar a exportação ou eliminação total de todos os teus dados biométricos e logs de presença.
+        </p>
+
+        {requestSubmitted ? (
+          <div style={{ padding: 16, borderRadius: 8, background: 'rgba(16,217,138,0.1)', border: '1px solid rgba(16,217,138,0.3)', color: '#10d98a', fontSize: 13 }}>
+            ✅ Pedido de direito GDPR enviado com sucesso. Será processado dentro do prazo regulamentar de 30 dias.
+          </div>
+        ) : (
+          <form onSubmit={handleSubmitGDPRRequest} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <select className="input-field" value={requestType} onChange={e => setRequestType(e.target.value as any)} style={{ width: 200 }}>
+              <option value="erasure">Direito ao Esquecimento (Eliminar)</option>
+              <option value="portability">Portabilidade (Exportar)</option>
+            </select>
+            <button type="submit" className="btn-primary" style={{ padding: '8px 16px', fontSize: 13 }}>Submeter Pedido</button>
+          </form>
+        )}
       </div>
 
-      <div style={{
-        padding: '16px 20px', borderRadius: 10,
-        background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
-        fontSize: 12, color: '#f59e0b', lineHeight: 1.6,
-      }}>
-        <strong>⚡ Modo Demo:</strong> Todos os dados neste dashboard são simulados. Nenhum dado real de utilizadores foi recolhido ou processado.
-        O sistema está em modo de demonstração técnica.
+      {/* Audit log section */}
+      <div className="glass-card" style={{ padding: 22 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📋 Registo de Auditoria de Acesso (Audit Log Real)</h2>
+        {loading ? (
+          <div style={{ padding: 20, display: 'flex', justifyContent: 'center' }}>
+            <div className="spinner" style={{ width: 24, height: 24 }} />
+          </div>
+        ) : logs.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+            Nenhum registo de auditoria encontrado.
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Data/Hora</th>
+                <th>Ação</th>
+                <th>Utilizador</th>
+                <th>Recurso</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((row) => (
+                <tr key={row.id}>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+                    {new Date(row.timestamp).toLocaleString('pt-PT')}
+                  </td>
+                  <td>
+                    <span className="badge badge-cyan" style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}>
+                      {row.action}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: 12 }}>{row.userId.slice(0, 10)}...</td>
+                  <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{row.resource}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

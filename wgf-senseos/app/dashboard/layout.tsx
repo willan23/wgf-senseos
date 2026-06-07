@@ -12,6 +12,7 @@ const navItems = [
   { href: '/dashboard/alerts', label: 'Alertas', icon: '🚨' },
   { href: '/dashboard/sensors', label: 'Sensores', icon: '📡' },
   { href: '/dashboard/sites', label: 'Sites', icon: '🏢' },
+  { href: '/dashboard/lab/datasets', label: 'Lab Datasets', icon: '🔬' },
   { href: '/dashboard/privacy', label: 'Privacidade', icon: '🔒' },
   { href: '/dashboard/settings', label: 'Definições', icon: '⚙️' },
 ];

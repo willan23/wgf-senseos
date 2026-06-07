@@ -1,12 +1,12 @@
 // =============================================
-// API Route: POST /api/uwsc/ingest
+// API Route: POST /api/uwsc/ingest/proto
 // =============================================
-// Recebe lotes de frames CSI de edge agents externos (mock ou reais).
-// Valida a mensagem, processa o pipeline UWSC e persiste os resultados.
+// Recebe lotes de frames CSI binários via Protocol Buffers.
+// Descodifica o envelope binário e orquestra o processamento do pipeline UWSC.
 // =============================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { isValidEnvelope, isCsiFrameBatchMessage } from '@uwsc/edge-protocol/index';
+import { decodeCsiFrameBatch } from '@uwsc/edge-protocol/index';
 import { db } from '@/lib/firebase';
 import { checkAntiSpoofing } from '@uwsc/core/ingestion/antiSpoofing';
 import { normalizeCsiMatrix, buildTemporalWindow, extractDynamicPerturbations } from '@uwsc/core/normalization';
@@ -37,31 +37,43 @@ const setSensorBuffer = (sensorId: string, buffer: any[]) => {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-
-    // Validate envelope structure
-    if (!isValidEnvelope(body)) {
-      return NextResponse.json({ error: 'Invalid message envelope' }, { status: 400 });
+    const contentType = req.headers.get('content-type') || '';
+    if (
+      !contentType.includes('application/x-protobuf') &&
+      !contentType.includes('application/octet-stream')
+    ) {
+      return NextResponse.json(
+        { error: 'Expected content-type application/x-protobuf or application/octet-stream' },
+        { status: 400 }
+      );
     }
 
-    if (!isCsiFrameBatchMessage(body)) {
-      return NextResponse.json({ error: 'Expected csi_frame_batch message type' }, { status: 400 });
-    }
+    // Read body as ArrayBuffer
+    const arrayBuffer = await req.arrayBuffer();
+    const rawBuffer = new Uint8Array(arrayBuffer);
 
-    const { payload, organizationId, siteId, agentId, sentAt } = body;
+    // Decode message using protobufjs wrapper
+    const message = decodeCsiFrameBatch(rawBuffer);
+
+    const { payload, organizationId, siteId, agentId, sentAt } = message;
     const { frames, batchSize } = payload;
 
     // Basic validation
     if (!frames || !Array.isArray(frames) || frames.length === 0) {
-      return NextResponse.json({ error: 'Empty frame batch' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Empty frame batch in protobuf payload' },
+        { status: 400 }
+      );
     }
 
-    console.log(`[uwsc/ingest] batch received | org=${organizationId} site=${siteId} agent=${agentId} frames=${batchSize} latency=${Date.now() - sentAt}ms`);
+    console.log(
+      `[uwsc/ingest/proto] batch received via protobuf | org=${organizationId} site=${siteId} agent=${agentId} frames=${batchSize} latency=${Date.now() - sentAt}ms`
+    );
 
     // Process frames in this batch
     let authenticFramesCount = 0;
     const sensorId = frames[0].sensorId || agentId;
-    const buffer = getSensorBuffer(sensorId);
+    const sensorBuffer = getSensorBuffer(sensorId);
 
     // Fetch reference fingerprint from Firestore once per batch
     let refFingerprint: any = null;
@@ -93,8 +105,8 @@ export async function POST(req: NextRequest) {
             siteId,
             sensorId,
             type: 'rf_spoofing_attempt',
-            title: '🚨 Tentativa de RF Spoofing',
-            description: `Um frame com assinatura inválida foi detectado do sensor ${sensorId}.`,
+            title: '🚨 Tentativa de RF Spoofing (Proto)',
+            description: `Um frame com assinatura inválida foi detectado via Protobuf do sensor ${sensorId}.`,
             severity: 'critical',
             status: 'open',
             timestamp: Date.now(),
@@ -123,16 +135,16 @@ export async function POST(req: NextRequest) {
         zScoreNormalize: true,
       });
 
-      buffer.push(normalized);
+      sensorBuffer.push(normalized);
       authenticFramesCount++;
     }
 
     // Retain only the last 5 seconds (500 frames at 100Hz)
     const maxFrames = 500;
-    if (buffer.length > maxFrames) {
-      setSensorBuffer(sensorId, buffer.slice(-maxFrames));
+    if (sensorBuffer.length > maxFrames) {
+      setSensorBuffer(sensorId, sensorBuffer.slice(-maxFrames));
     } else {
-      setSensorBuffer(sensorId, buffer);
+      setSensorBuffer(sensorId, sensorBuffer);
     }
 
     // Run inference if we have enough frames (at least 20 frames)
@@ -172,8 +184,8 @@ export async function POST(req: NextRequest) {
             siteId,
             sensorId,
             type: 'fall_detected',
-            title: '⚠️ Queda Detectada',
-            description: 'O sistema detectou uma possível queda real. Verificar imediatamente.',
+            title: '⚠️ Queda Detectada (Proto)',
+            description: 'O sistema detectou uma possível queda real via fluxo Protobuf. Verificar imediatamente.',
             severity: 'critical',
             status: 'open',
             timestamp: Date.now(),
@@ -188,8 +200,8 @@ export async function POST(req: NextRequest) {
             siteId,
             sensorId,
             type: 'unknown_presence',
-            title: '🔴 Presença Desconhecida',
-            description: 'Uma pessoa não identificada foi detectada no espaço monitorizado.',
+            title: '🔴 Presença Desconhecida (Proto)',
+            description: 'Uma pessoa não identificada foi detectada no espaço monitorizado via Protobuf.',
             severity: 'high',
             status: 'open',
             timestamp: Date.now(),
@@ -200,25 +212,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
-      status: 'accepted',
-      framesReceived: frames.length,
-      authenticProcessed: authenticFramesCount,
-      processedAt: Date.now(),
+    return new NextResponse(null, {
+      status: 202,
+      headers: {
+        'x-processed-frames': String(frames.length),
+        'x-authentic-processed': String(authenticFramesCount),
+      },
     });
-
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[uwsc/ingest] Error:', msg);
+    console.error('[uwsc/ingest/proto] Error:', msg);
     return NextResponse.json({ error: 'Internal server error', detail: msg }, { status: 500 });
   }
 }
 
 export async function GET() {
   return NextResponse.json({
-    endpoint: '/api/uwsc/ingest',
-    description: 'WGF SenseOS UWSC Ingest API',
+    endpoint: '/api/uwsc/ingest/proto',
+    description: 'WGF SenseOS UWSC Protobuf Ingest API',
     version: 'v1',
-    accepts: 'POST application/json — MessageEnvelope<CsiFrameBatchPayload>',
+    accepts: 'POST application/x-protobuf — Binary payload serialized from MessageEnvelope<CsiFrameBatchPayload>',
   });
 }

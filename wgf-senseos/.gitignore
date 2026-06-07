@@ -36,6 +36,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Firebase / App Hosting config
+apphosting.yaml
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

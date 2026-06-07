@@ -269,7 +269,7 @@ export function extractDynamicPerturbations(tensor: CsiTensor): CsiTensor {
   if (T < 2) return tensor;
 
   // 1. Calculate mean along the time axis (T)
-  const mean = [];
+  const mean: number[][] = [];
   for (let s = 0; s < S; s++) {
     mean[s] = new Array(A).fill(0);
     for (let a = 0; a < A; a++) {
@@ -282,7 +282,7 @@ export function extractDynamicPerturbations(tensor: CsiTensor): CsiTensor {
   }
 
   // 2. Subtract time-mean and apply thresholding
-  const dynamicData = [];
+  const dynamicData: number[][][] = [];
   for (let t = 0; t < T; t++) {
     dynamicData[t] = [];
     for (let s = 0; s < S; s++) {

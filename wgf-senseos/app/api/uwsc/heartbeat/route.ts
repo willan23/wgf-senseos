@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { isValidEnvelope, isHeartbeatMessage } from '@uwsc/edge-protocol/index';
+import { db } from '@/lib/firebase';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,8 +18,23 @@ export async function POST(req: NextRequest) {
 
     console.log(`[uwsc/heartbeat] agent=${agentId} org=${organizationId} site=${siteId} cpu=${payload.cpuUsagePercent.toFixed(1)}% uptime=${payload.uptimeSeconds}s`);
 
-    // In production: update sensor last-seen in Firestore
-    // await updateSensorHeartbeat(agentId, organizationId, siteId, payload);
+    // Update sensor last-seen in Firestore
+    if (db) {
+      const { doc, setDoc } = await import('firebase/firestore');
+      const sensorRef = doc(db, 'sensors', agentId);
+      await setDoc(sensorRef, {
+        id: agentId,
+        status: 'online',
+        lastHeartbeatAt: Date.now(),
+        updatedAt: Date.now(),
+        organizationId,
+        siteId,
+        firmwareVersion: payload.firmwareVersion || 'v1.0.0',
+        cpuUsage: payload.cpuUsagePercent,
+        memoryUsage: payload.memoryUsageMb,
+        uptimeSeconds: payload.uptimeSeconds,
+      }, { merge: true });
+    }
 
     return NextResponse.json({
       status: 'ok',

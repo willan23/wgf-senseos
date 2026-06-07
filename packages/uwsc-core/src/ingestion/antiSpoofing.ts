@@ -97,7 +97,10 @@ export function detectSpoofingAnomaly(
 /**
  * Scores the authenticity of a signal frame and suggests a security quarantine action.
  */
-export function scoreSignalAuthenticity(fingerprint: HardwareFingerprint): {
+export function scoreSignalAuthenticity(
+  fingerprint: HardwareFingerprint,
+  reference?: HardwareFingerprint
+): {
   authenticityScore: number;
   spoofingRisk: 'low' | 'medium' | 'high';
   reasonCodes: string[];
@@ -107,15 +110,15 @@ export function scoreSignalAuthenticity(fingerprint: HardwareFingerprint): {
   let score = 1.0;
 
   // 1. Check if we have a registered reference fingerprint for this sensor
-  let reference = fingerprintDatabase.get(fingerprint.sensorId);
-  if (!reference) {
+  let activeReference = reference || fingerprintDatabase.get(fingerprint.sensorId);
+  if (!activeReference) {
     // Register the first fingerprint as the trusted baseline
     fingerprintDatabase.set(fingerprint.sensorId, fingerprint);
-    reference = fingerprint;
+    activeReference = fingerprint;
   }
 
   // 2. Perform comparison
-  const anomaly = detectSpoofingAnomaly(fingerprint, reference);
+  const anomaly = detectSpoofingAnomaly(fingerprint, activeReference);
   if (anomaly.isAnomaly) {
     score *= anomaly.similarity;
     reasonCodes.push('RF_FINGERPRINT_MISMATCH');
@@ -166,4 +169,24 @@ export function scoreSignalAuthenticity(fingerprint: HardwareFingerprint): {
  */
 export function resetSensorBaseline(sensorId: string): void {
   fingerprintDatabase.delete(sensorId);
+}
+
+/**
+ * Main entry point for checking if a CSI frame has a valid RF fingerprint.
+ */
+export function checkAntiSpoofing(
+  frame: CsiFrame,
+  reference?: HardwareFingerprint
+): {
+  isAuthentic: boolean;
+  authenticityScore: number;
+  calculatedFingerprint: HardwareFingerprint;
+} {
+  const fingerprint = extractRfFingerprint(frame);
+  const result = scoreSignalAuthenticity(fingerprint, reference);
+  return {
+    isAuthentic: result.recommendedAction !== 'reject',
+    authenticityScore: result.authenticityScore,
+    calculatedFingerprint: fingerprint,
+  };
 }

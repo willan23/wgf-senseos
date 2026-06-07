@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package uwsc.v1;
+
+message CsiFramePayload {
+  string sensor_id = 1;
+  int64 timestamp = 2;
+  repeated float amplitude = 3 [packed=true];
+  repeated float phase = 4 [packed=true];
+  int32 subcarrier_count = 5;
+  int32 antenna_index = 6;
+  float rssi = 7;
+  float noise_floor = 8;
+  bool is_simulated = 9;
+  string scenario_tag = 10;
+  string firmware_version = 11;
+  float rf_authenticity_score = 12;
+}
+
+message CsiFrameBatchPayload {
+  repeated CsiFramePayload frames = 1;
+  int32 batch_size = 2;
+  int64 period_ms = 3;
+}
+
+message MessageEnvelope {
+  string protocol = 1;
+  string type = 2;
+  string message_id = 3;
+  string agent_id = 4;
+  string organization_id = 5;
+  string site_id = 6;
+  int64 sent_at = 7;
+  CsiFrameBatchPayload payload = 8;
+  string checksum = 9;
+}

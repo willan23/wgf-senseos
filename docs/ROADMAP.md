@@ -64,7 +64,7 @@ Para obter alta precisão e cobrir pontos cegos residenciais ou comerciais, a ar
 *   Testes de desempenho de CPU e consumo de memória RAM nos roteadores de baixo custo para garantir que a coleta de CSI não afete o desempenho de internet dos clientes.
 
 ### Fase 3: Ingestão de Produção e Homologação
-*   Substituição das fontes de dados simuladas no dashboard pelas APIs de ingestão real.
+*   **Substituição das fontes de dados simuladas no dashboard pelas APIs de Ingestão Real** (CONCLUÍDO - Ingestão real-time com normalização de sinal e orquestração de inferência implementada via API `/api/uwsc/ingest` com salvamento real no Firestore).
 *   Lançamento do primeiro kit físico (1 Roteador Central SenseOS + 2 Extensores Mesh Dedicados) para beta-testers residenciais.
 *   Refinamento do modelo de detecção de queda e gait analysis em ambientes domésticos dinâmicos.
 

@@ -6,6 +6,7 @@ gemini.md
 pro.md
 prompt.md
 *.pdf
+docs/
 
 # ============================================================
 # dependencies
@@ -49,3 +50,4 @@ yarn-error.log*
 .firebase/
 *-debug.log
 .runtime/
+wgf-senseos/apphosting.yaml

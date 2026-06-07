@@ -9,7 +9,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { db } from '../firebase';
+import { db } from './firebase';
 import {
   collection, addDoc, serverTimestamp, onSnapshot, query,
   where, orderBy, limit, Timestamp,
@@ -188,7 +188,7 @@ export function useUwscPipeline(opts: UseUwscPipelineOptions) {
     if (intervalRef.current) return;
 
     // Dynamic import to avoid bundling simulator in production edge builds
-    import('../csi-simulator').then(({ generateCsiFrame }) => {
+    import('./csi-simulator').then(({ generateCsiFrame }) => {
       let t = 0;
       intervalRef.current = setInterval(() => {
         t += 10;
