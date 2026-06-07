@@ -23,7 +23,9 @@
       "@uwsc/core/*": ["../packages/uwsc-core/src/*"],
       "@uwsc/simulator/*": ["../packages/uwsc-simulator/src/*"],
       "@uwsc/edge-protocol/*": ["../packages/uwsc-edge-protocol/src/*"],
-      "@uwsc/privacy-core/*": ["../packages/uwsc-privacy-core/src/*"]
+      "@uwsc/privacy-core/*": ["../packages/uwsc-privacy-core/src/*"],
+      "protobufjs": ["./node_modules/protobufjs"],
+      "snarkjs": ["./node_modules/snarkjs"]
     }
   },
   "include": [
