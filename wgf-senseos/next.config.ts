@@ -3,6 +3,7 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingRoot: path.join(__dirname),
   transpilePackages: [
     "@uwsc/core",
     "@uwsc/edge-protocol",
