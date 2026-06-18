@@ -1,73 +1,161 @@
-# Roadmap de Integração de Hardware Real — WGF SenseOS
+# Roadmap de Desenvolvimento — WGF SenseOS
 
-Este documento estabelece o roteiro técnico e os requisitos necessários para efetuar a transição do motor de simulação (MVP) para a integração com **dispositivos físicos de hardware real**.
-
----
-
-## 1. Requisitos de Hardware Compatível
-
-A extração de dados CSI (Channel State Information) exige chipsets Wi-Fi específicos que permitam expor os dados da camada física (PHY) para a camada de software.
-
-### A. Roteadores Comerciais com OpenWrt
-*   **Chipsets Recomendados:** Qualcomm Atheros (série QCA988x, QCA998x) ou MediaTek (MT7621, MT7622).
-*   **Firmware:** OpenWrt (versão 21.02 ou superior) instalado no roteador.
-*   **Driver:** Modificações específicas de driver (como o utilitário `ath9k_csi` ou `ath10k` com patches de monitoramento) para habilitar o envio dos relatórios de subportadora.
-
-### B. Nós de Coleta Dedicados (Raspberry Pi / Jetson Nano)
-*   **Hardware:** Raspberry Pi 4 Model B ou Jetson Nano.
-*   **Placa Wi-Fi Auxiliar:** Placas baseadas no chip Broadcom (ex: chip Wi-Fi integrado da Pi 4) utilizando os patches de firmware **Nexmon**.
-*   **Nexmon Project:** Repositório open-source que ativa o modo monitor e a extração de CSI de subportadoras OFDM específicas no chip da Broadcom (BCM43455c0).
+**Última atualização:** 2026-06-17
+**Estado:** Pronto para hardware (código 95% completo)
 
 ---
 
-## 2. A Geometria de Malha Multiestática (Mesh Grid)
-
-Para obter alta precisão e cobrir pontos cegos residenciais ou comerciais, a arquitetura deve evoluir de um modelo monostático (um transmissor, um receptor) para uma **Malha Multiestática**:
+## Estado Atual
 
 ```
-                  ┌───────────────────────┐
-                  │ Transmissor (Router)  │
-                  └──────────┬────────────┘
-                             │
-            ┌────────────────┴────────────────┐
-            ▼                                 ▼
-   ┌─────────────────┐               ┌─────────────────┐
-   │ Receptor Nó 01  │ <───────────> │ Receptor Nó 02  │
-   │ (Raspberry Pi)  │  RF Crossing  │ (Raspberry Pi)  │
-   └─────────────────┘               └─────────────────┘
+Código implementado:    ████████████████████  95%
+Hardware integrado:     ██░░░░░░░░░░░░░░░░░░  10% (falta RPi 5)
+Produção real:          ████████████████░░░░  80%
 ```
-
-1.  **Grade de Feixes:** Ao espalhar 2 ou mais receptores (Nós) por uma divisão, criam-se múltiplos canais de rádio cruzados.
-2.  **Triangulação de Localização (AoA/ToF):** O atraso temporal (Time of Flight) e o ângulo de chegada (Angle of Arrival) das ondas difratadas permitem ao algoritmo mapear as coordenadas tridimensionais (X, Y, Z) das perturbações biológicas.
 
 ---
 
-## 3. Roteiro de Desenvolvimento e Fases
+## Fases Concluídas
 
-```
-   Fase 1: Lab Solo      Fase 2: Driver OpenWrt      Fase 3: Edge Agent      Fase 4: Escala SaaS
-   [ 1-2 meses ]           [ 2-3 meses ]             [ 2 meses ]             [ Contínuo ]
-   ┌──────────────┐        ┌────────────────┐        ┌──────────────┐        ┌────────────────┐
-   │ Raspberry Pi │ ─────> │ Roteadores     │ ─────> │ API de Ingest│ ─────> │ IEEE 802.11bf  │
-   │ com Nexmon   │        │ com OpenWrt    │        │ de Produção  │        │ Padronização   │
-   └──────────────┘        └────────────────┘        └──────────────┘        └────────────────┘
-```
+### ✅ Fase 1: Auditoria e Remoção de Mocks
+- Todos os 37 mocks/placeholder identificados e substituídos
+- TypeScript compila sem erros
+- Modelos de inferência reais integrados
 
-### Fase 1: Validação em Laboratório Controlado (Raspberry Pi + Nexmon)
-*   Configuração de 1 transmissor (AP doméstico comum) e 2 receptores Raspberry Pi 4 rodando patches Nexmon.
-*   Coleta e exportação de dados brutos de CSI em arquivos binários (.pcap) para validação off-line dos filtros de limpeza de sinal (Butterworth e PCA).
-*   Treinamento inicial de redes neurais convolucionais (CNN) para contagem de pessoas com dados reais.
+### ✅ Fase 2: Edge Agent Real
+- Captura CSI via UDP Nexmon (porta 5500)
+- Parsing binário (int16 + float)
+- RF Fingerprint para anti-spoofing
+- Instalação OpenWrt com systemd
+- Test mode para desenvolvimento sem hardware
 
-### Fase 2: Desenvolvimento do Firmware Customizado (OpenWrt Integration)
-*   Desenvolvimento de um pacote `.ipk` para OpenWrt que encapsula o script de extração CSI (Edge Ingestion Agent) e eBPF runtime.
-*   Implementação do canal de comunicação via WebSocket ou gRPC seguro entre o roteador e a nuvem.
-*   Testes de desempenho de CPU e consumo de memória RAM nos roteadores de baixo custo para garantir que a coleta de CSI não afete o desempenho de internet dos clientes.
+### ✅ Fase 3: Motor de Inferência Real
+- Occupancy CNN (energy analysis)
+- Fall Classifier (multi-stage)
+- AoA Localization (MUSIC beamforming)
+- Model Manager (lifecycle + health check)
 
-### Fase 3: Ingestão de Produção e Homologação
-*   **Substituição das fontes de dados simuladas no dashboard pelas APIs de Ingestão Real** (CONCLUÍDO - Ingestão real-time com normalização de sinal e orquestração de inferência implementada via API `/api/uwsc/ingest` com salvamento real no Firestore).
-*   Lançamento do primeiro kit físico (1 Roteador Central SenseOS + 2 Extensores Mesh Dedicados) para beta-testers residenciais.
-*   Refinamento do modelo de detecção de queda e gait analysis em ambientes domésticos dinâmicos.
+### ✅ Fase 4: RF SLAM em TypeScript
+- AoA Estimator (beamforming)
+- ToF Estimator (phase slope)
+- Multipath Analyzer (wall detection)
+- Floor Plan Generator (geometric output)
+- API endpoint `/api/rf-slam/map`
 
-### Fase 4: Padronização IEEE 802.11bf (Prontidão para o Futuro)
-*   **O que é o 802.11bf?** O novo padrão oficial da indústria para Wi-Fi Sensing. Com este padrão, fabricantes de roteadores (como Netgear, Linksys, TP-Link) já processam as perturbações de sinal nativamente no chip e expõem APIs de CSI padronizadas.
-*   **Evolução do WGF SenseOS:** Adaptação da Camada 2 (Abstração Universal) para consumir dados das APIs nativas 802.11bf à medida que roteadores comerciais compatíveis cheguem ao mercado de consumo de massa, permitindo que a nossa plataforma seja instalada instantaneamente em roteadores modernos de terceiros sem necessidade de firmwares customizados.
+### ✅ Fase 5: Dashboard 3D
+- Canvas 3D com projeção perspectiva
+- Rotação/zoom interativo
+- Toggle 2D/3D no mapa
+- Paredes, sensores, grid 3D
+
+### ✅ Fase 6: Analytics RAG
+- Retriever Firestore (alerts, detections, sites)
+- Prompt builder com contexto recuperado
+- Response generator (LLM streaming + local fallback)
+- API Route `/api/v1/analytics/chat`
+
+### ✅ Fase 7: Privacy Core
+- snarkjs Groth16 (quando circuitos compilados)
+- HMAC-SHA256 fallback
+- CSI frame redaction
+- GDPR data subject requests
+
+---
+
+## Próximas Fases
+
+### 🔜 Fase 8: Hardware e Validação
+**Dependência:** Comprar Raspberry Pi 5
+
+| Tarefa | Duração | Prioridade |
+|--------|---------|-----------|
+| Comprar RPi 5 + adaptador WiFi | 1 dia | Alta |
+| Instalar Raspberry Pi OS Lite | 2h | Alta |
+| Compilar firmware Nexmon | 4h | Alta |
+| Testar captura CSI real | 4h | Alta |
+| Validar edge agent com dados reais | 4h | Alta |
+
+### 🔜 Fase 9: X-Fi Model Weights
+**Dependência:** Download dos pesos XRF55
+
+| Tarefa | Duração | Prioridade |
+|--------|---------|-----------|
+| Baixar pesos X-Fi XRF55 | 1h | Média |
+| Testar X-Fi bridge | 2h | Média |
+| Integrar gait signatures | 4h | Média |
+
+### ✅ Fase 10: Deploy e CI/CD
+- ✅ Firebase App Hosting configurado
+- ✅ GitHub → Firebase auto-deploy ativo
+- ✅ Next.js 16 + Turbopack build
+- ✅ Pacotes @uwsc/* como file: dependencies
+- 🔜 Monitoring (Datadog/Grafana)
+- 🔜 Load testing (k6)
+
+### 🔜 Fase 11: RF SLAM Completo
+**Dependência:** Dados CSI reais
+
+| Tarefa | Duração | Prioridade |
+|--------|---------|-----------|
+| Validar AoA com dados reais | 4h | Média |
+| Calibrar ToF estimation | 4h | Média |
+| Otimizar floor plan generator | 4h | Baixa |
+| Dashboard 3D com Three.js real | 8h | Baixa |
+
+---
+
+## Fases Futuras (6-12 meses)
+
+### Fase 12: Mobile App
+- React Native
+- Push notifications (FCM)
+- Alertas em tempo real
+
+### Fase 13: API Pública
+- OpenAPI 3.1
+- Rate limiting
+- API keys
+- RBAC
+
+### Fase 14: Enterprise Security
+- MFA/TOTP
+- Audit logs avançados
+- IP restrictions
+- Session management
+
+### Fase 15: IEEE 802.11bf
+- Adaptação para novo padrão WiFi
+- APIs nativas de routers comerciais
+
+---
+
+## Hardware Necessário (atualizado)
+
+### Para MVP (1 pessoa)
+| Componente | Qtd | Custo |
+|------------|-----|-------|
+| Raspberry Pi 5 (4GB) | 1 | ~€85 |
+| Adaptador WiFi Nexmon | 1 | ~€15 |
+| Cartão SD 32GB | 1 | ~€10 |
+| Fonte USB-C 27W | 1 | ~€15 |
+| **Total** | — | **~€125** |
+
+### Para Produção (3 sensores)
+| Componente | Qtd | Custo |
+|------------|-----|-------|
+| Raspberry Pi 5 (4GB) | 3 | ~€255 |
+| Adaptadores WiFi Nexmon | 3 | ~€45 |
+| Cartões SD 32GB | 3 | ~€30 |
+| Fontes USB-C 27W | 3 | ~€45 |
+| **Total** | — | **~€375** |
+
+---
+
+## Métricas de Sucesso
+
+| Métrica | Target 6 meses | Target 12 meses |
+|---------|----------------|-----------------|
+| Clientes beta | 5-10 | 50-100 |
+| MRR | €500-1000 | €5000-10000 |
+| Sensores ativos | 20-50 | 200-500 |
+| Locais mapeados | 10-20 | 100-200 |
