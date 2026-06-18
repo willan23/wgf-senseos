@@ -3,13 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@firebase/auth": "^1.13.2",
+    "@uwsc/core": "file:../packages/uwsc-core",
+    "@uwsc/edge-protocol": "file:../packages/uwsc-edge-protocol",
+    "@uwsc/privacy-core": "file:../packages/uwsc-privacy-core",
     "firebase": "^12.14.0",
     "lucide-react": "^1.17.0",
     "next": "16.2.7",
