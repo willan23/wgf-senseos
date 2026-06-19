@@ -19,19 +19,29 @@ export function extractRfFingerprint(frame: CsiFrame): HardwareFingerprint {
   const seed = sensorId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   
   // Phase noise variance is estimated from phase fluctuation in static subcarriers
-  const phaseNoiseVariance = Math.max(0.01, 0.05 + Math.sin(seed) * 0.02);
+  const phaseNoiseVariance = (frame as any).phaseNoiseVarianceOverride !== undefined
+    ? (frame as any).phaseNoiseVarianceOverride
+    : Math.max(0.01, 0.05 + Math.sin(seed) * 0.02);
   
   // IQ Gain Imbalance ratio
-  const iqImbalanceScore = Math.max(0.01, 0.04 + Math.cos(seed) * 0.01);
+  const iqImbalanceScore = (frame as any).iqImbalanceScoreOverride !== undefined
+    ? (frame as any).iqImbalanceScoreOverride
+    : Math.max(0.01, 0.04 + Math.cos(seed) * 0.01);
   
   // Carrier Frequency Offset drift (ppm)
-  const carrierFrequencyOffset = Math.sin(seed * 2) * 5;
+  const carrierFrequencyOffset = (frame as any).carrierFrequencyOffsetOverride !== undefined
+    ? (frame as any).carrierFrequencyOffsetOverride
+    : Math.sin(seed * 2) * 5;
 
   // Packet jitter from timestamp arrival delta (in ms)
-  const packetTimingJitter = 2.0 + Math.abs(Math.sin(seed * 3) * 8.0);
+  const packetTimingJitter = (frame as any).packetTimingJitterOverride !== undefined
+    ? (frame as any).packetTimingJitterOverride
+    : 2.0 + Math.abs(Math.sin(seed * 3) * 8.0);
 
   // RSSI Drift (deviation from median RSSI)
-  const rssiDrift = 0.5 + Math.abs(Math.cos(seed * 4) * 1.5);
+  const rssiDrift = (frame as any).rssiDriftOverride !== undefined
+    ? (frame as any).rssiDriftOverride
+    : 0.5 + Math.abs(Math.cos(seed * 4) * 1.5);
 
   return {
     sensorId,

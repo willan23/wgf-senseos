@@ -8,17 +8,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeCsiFrameBatch } from '@uwsc/edge-protocol/index';
 import { db } from '@/lib/firebase';
+import type { HardwareFingerprint } from '@uwsc/core/ingestion';
 import { checkAntiSpoofing } from '@uwsc/core/ingestion/antiSpoofing';
 import { normalizeCsiMatrix, buildTemporalWindow, extractDynamicPerturbations } from '@uwsc/core/normalization';
+import type { NormalizedCsiFrame } from '@uwsc/core/normalization';
 import { processCsiTensor } from '@uwsc/core/signal-processing';
-import { runInferencePipeline } from '@uwsc/core/inference';
+import type { CsiFrame } from '@uwsc/core/types';
+import { runServerInferencePipeline } from '@/lib/server/xfi-runtime';
 
 // Define global in-memory buffer type to hold sliding window frames
 declare global {
-  var sensorBuffers: Map<string, any[]> | undefined;
+  var sensorBuffers: Map<string, NormalizedCsiFrame[]> | undefined;
 }
 
-const getSensorBuffer = (sensorId: string): any[] => {
+const getSensorBuffer = (sensorId: string): NormalizedCsiFrame[] => {
   if (!globalThis.sensorBuffers) {
     globalThis.sensorBuffers = new Map();
   }
@@ -28,7 +31,7 @@ const getSensorBuffer = (sensorId: string): any[] => {
   return globalThis.sensorBuffers.get(sensorId)!;
 };
 
-const setSensorBuffer = (sensorId: string, buffer: any[]) => {
+const setSensorBuffer = (sensorId: string, buffer: NormalizedCsiFrame[]) => {
   if (!globalThis.sensorBuffers) {
     globalThis.sensorBuffers = new Map();
   }
@@ -76,12 +79,12 @@ export async function POST(req: NextRequest) {
     const sensorBuffer = getSensorBuffer(sensorId);
 
     // Fetch reference fingerprint from Firestore once per batch
-    let refFingerprint: any = null;
+    let refFingerprint: HardwareFingerprint | undefined;
     if (db) {
       const { doc, getDoc } = await import('firebase/firestore');
       const sensorDoc = await getDoc(doc(db, 'sensors', sensorId));
       if (sensorDoc.exists()) {
-        refFingerprint = sensorDoc.data()?.rfFingerprint || null;
+        refFingerprint = sensorDoc.data()?.rfFingerprint as HardwareFingerprint | undefined;
       }
     }
 
@@ -89,11 +92,11 @@ export async function POST(req: NextRequest) {
 
     for (const frame of frames) {
       // Map CsiFramePayload to CsiFrame
-      const csiFrame = {
+      const csiFrame: CsiFrame = {
         ...frame,
         siteId,
         organizationId,
-      } as any;
+      };
 
       // 1. Anti-Spoofing check
       const spoofCheck = checkAntiSpoofing(csiFrame, refFingerprint);
@@ -153,10 +156,11 @@ export async function POST(req: NextRequest) {
       const rawTensor = buildTemporalWindow(updatedBuffer, 5000);
       const tensor = extractDynamicPerturbations(rawTensor);
       const signal = processCsiTensor(tensor, { sampleRateHz: 100 });
-      const inference = await runInferencePipeline({
+      const inference = await runServerInferencePipeline({
         tensor,
         signal,
         siteId,
+        organizationId,
         sensorIds: [sensorId],
       });
 

@@ -23,6 +23,7 @@ export interface NormalizedCsiFrame {
   subcarrierCount: number;
   antennaIndex: number;
   rssi: number;
+  scenarioTag?: string;
 }
 
 export interface CsiTensor {
@@ -30,6 +31,7 @@ export interface CsiTensor {
   data: number[][][];              // 3D Matrix
   timestamps: number[];
   sensorIds: string[];
+  scenarioTag?: string;
 }
 
 export interface NormalizationProfile {
@@ -142,6 +144,7 @@ export function normalizeCsiMatrix(
     subcarrierCount: profile.targetSubcarrierCount,
     antennaIndex: rawFrame.antennaIndex || 0,
     rssi: rawFrame.rssi,
+    scenarioTag: rawFrame.scenarioTag,
   };
 }
 
@@ -227,11 +230,16 @@ export function buildTemporalWindow(
     }
   }
 
+  // Get scenarioTag from the latest frame in the window
+  const latestFrame = windowFrames[windowFrames.length - 1];
+  const scenarioTag = latestFrame?.scenarioTag;
+
   return {
     shape: [T, S, A],
     data,
     timestamps,
     sensorIds,
+    scenarioTag,
   };
 }
 
@@ -297,5 +305,6 @@ export function extractDynamicPerturbations(tensor: CsiTensor): CsiTensor {
   return {
     ...tensor,
     data: dynamicData,
+    scenarioTag: tensor.scenarioTag,
   };
 }

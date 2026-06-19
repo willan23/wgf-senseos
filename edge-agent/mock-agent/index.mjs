@@ -35,6 +35,47 @@ const CONFIG = {
 };
 
 // ============================================================
+// CLI Argument Parsing
+// ============================================================
+
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--org' && args[i + 1]) {
+    CONFIG.orgId = args[i + 1];
+    i++;
+  } else if (args[i] === '--site' && args[i + 1]) {
+    CONFIG.siteId = args[i + 1];
+    i++;
+  } else if (args[i] === '--sensor' && args[i + 1]) {
+    CONFIG.sensorId = args[i + 1];
+    i++;
+  } else if (args[i] === '--scenario' && args[i + 1]) {
+    CONFIG.scenario = args[i + 1];
+    i++;
+  } else if (args[i] === '--agent' && args[i + 1]) {
+    CONFIG.agentId = args[i + 1];
+    i++;
+  } else if (args[i] === '--server' && args[i + 1]) {
+    CONFIG.serverUrl = args[i + 1];
+    i++;
+  } else if (args[i] === '--interval' && args[i + 1]) {
+    CONFIG.intervalMs = parseInt(args[i + 1], 10);
+    i++;
+  } else if (args[i] === '--batch' && args[i + 1]) {
+    CONFIG.batchSize = parseInt(args[i + 1], 10);
+    i++;
+  }
+}
+
+// Validate scenario
+const VALID_SCENARIOS = ['empty_house', 'person_breathing', 'two_people_walking', 'unknown_intruder', 'fall_event', 'spoofing_attack'];
+if (!VALID_SCENARIOS.includes(CONFIG.scenario)) {
+  console.warn(`\n⚠️ Scenario "${CONFIG.scenario}" is invalid. Defaulting to "two_people_walking".`);
+  console.warn(`   Valid scenarios: ${VALID_SCENARIOS.join(', ')}\n`);
+  CONFIG.scenario = 'two_people_walking';
+}
+
+// ============================================================
 // CSI Simulator (inline — não depende de módulos externos)
 // ============================================================
 
@@ -51,35 +92,49 @@ function generateCsiFrame(sensorId, scenario, t) {
   const phase = [];
 
   for (let i = 0; i < CONFIG.subcarriers; i++) {
-    let amp = 50 + gaussianNoise(0, 3);
+    let amp = 50 + gaussianNoise(0, 0.5);
     let ph  = (i * 0.1 + t * 0.01) % (2 * Math.PI);
 
     // Scenario modulation
     switch (scenario) {
       case 'two_people_walking':
-        amp += 15 * Math.sin(2 * Math.PI * 2.0 * t / 1000);
-        ph  += 0.3 * Math.sin(2 * Math.PI * 1.5 * t / 1000);
+        // Frequency-dispersed modulation to survive Z-score normalization
+        amp += 12 * Math.sin(2 * Math.PI * 2.0 * t / 1000 + i * 0.15);
+        amp += 8 * Math.sin(2 * Math.PI * 1.3 * t / 1000 + i * 0.2);
+        ph  += 0.3 * Math.sin(2 * Math.PI * 1.5 * t / 1000 + i * 0.1);
         break;
       case 'fall_event':
-        if (t > 3000 && t < 3200) amp += 80; // spike
-        if (t > 3200) amp -= 20; // drop to floor level
+        // 0s - 3s: Walking
+        // 3s - 3.5s: Extreme impact spike
+        // 3.5s - 10s: Unconscious/Lying down, slow breathing
+        if (t < 3000) {
+          amp += 10 * Math.sin(2 * Math.PI * 1.5 * t / 1000 + i * 0.1);
+        } else if (t >= 3000 && t < 3500) {
+          amp += 120 * Math.sin(i * 0.05) + gaussianNoise(0, 10);
+        } else {
+          amp = 25 + 1.5 * Math.sin(2 * Math.PI * 0.16 * t / 1000 + i * 0.08); // slow breathing on floor
+        }
         break;
       case 'person_breathing':
-        amp += 5 * Math.sin(2 * Math.PI * 0.3 * t / 1000);
+        amp += 3 * Math.sin(2 * Math.PI * 0.25 * t / 1000 + i * 0.08);
         break;
       case 'empty_house':
-        amp += gaussianNoise(0, 0.5);
+        // Only noise, no motion components
         break;
       case 'unknown_intruder':
-        if (t > 2000) {
-          amp += 20 * Math.sin(2 * Math.PI * 1.8 * t / 1000);
-        }
+        amp += 14 * Math.sin(2 * Math.PI * 1.8 * t / 1000 + i * 0.12);
+        break;
+      case 'spoofing_attack':
+        // Looks like walking, but will trigger security failure via overrides
+        amp += 10 * Math.sin(2 * Math.PI * 1.4 * t / 1000 + i * 0.1);
         break;
     }
 
     amplitude.push(Math.max(0, amp));
     phase.push(ph);
   }
+
+  const isSpoof = scenario === 'spoofing_attack';
 
   return {
     messageId: randomUUID(),
@@ -96,7 +151,11 @@ function generateCsiFrame(sensorId, scenario, t) {
     isSimulated: true,
     scenarioTag: scenario,
     firmwareVersion: 'mock-v1.0.0',
-    rfAuthenticityScore: 0.95 + Math.random() * 0.05,
+    rfAuthenticityScore: isSpoof ? 0.25 : (0.95 + Math.random() * 0.05),
+    phaseNoiseVarianceOverride: isSpoof ? 0.22 : undefined,
+    iqImbalanceScoreOverride: isSpoof ? 0.10 : undefined,
+    packetTimingJitterOverride: isSpoof ? 35.0 : undefined,
+    rssiDriftOverride: isSpoof ? 5.5 : undefined,
   };
 }
 
@@ -126,7 +185,14 @@ async function sendBatch(frames) {
       headers: { 'Content-Type': 'application/json', 'X-Agent-Id': CONFIG.agentId },
       body: JSON.stringify(message),
     });
-    if (!resp.ok) {
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.scenario && data.scenario !== CONFIG.scenario) {
+        console.log(`\n[agent] Scenario changed by server: ${CONFIG.scenario} -> ${data.scenario}`);
+        CONFIG.scenario = data.scenario;
+        t = 0; // reset scenario timer
+      }
+    } else {
       console.warn(`[agent] Ingest response: ${resp.status} ${resp.statusText}`);
     }
   } catch (err) {

@@ -1,15 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  SimulationState,
-  initialSimulationState, tickSimulation, SCENARIOS, SAMPLE_RATE_MS,
-} from '@/lib/csi-simulator';
+import { SimulationState, initialSimulationState } from '@/lib/csi-simulator';
 import { SimulationScenario } from '@/types';
-
-const DEMO_SENSOR_ID = 'sensor_demo_01';
-const DEMO_SITE_ID = 'site_demo_01';
-const DEMO_ORG_ID = 'org_demo';
 
 const SCENARIO_LABELS: Record<SimulationScenario, string> = {
   empty_house: '🏠 Casa Vazia',
@@ -22,39 +15,110 @@ const SCENARIO_LABELS: Record<SimulationScenario, string> = {
 };
 
 export function useSimulation() {
-  const [state, setState] = useState<SimulationState>(initialSimulationState());
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [state, setState] = useState<SimulationState & { sensors?: Record<string, any>; sensorList?: any[] }>({
+    ...initialSimulationState(),
+    sensors: {},
+    sensorList: [],
+  });
 
-  const start = useCallback((scenario?: SimulationScenario) => {
-    setState(prev => ({
-      ...initialSimulationState(scenario || prev.scenario),
-      isRunning: true,
-    }));
+  const pollState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/uwsc/state');
+      if (res.ok) {
+        const data = await res.json();
+        setState(prev => ({
+          ...prev,
+          isRunning: data.isRunning,
+          scenario: data.scenario,
+          t: data.t ?? prev.t,
+          frames: data.frames || [],
+          detections: data.detections || [],
+          alerts: data.alerts || [],
+          occupancy: data.occupancy || 0,
+          location: data.location || { x: 50, y: 50 },
+          sensors: data.sensors || {},
+          sensorList: data.sensorList || [],
+        }));
+      }
+    } catch (err) {
+      console.error('Error polling simulation state:', err);
+    }
   }, []);
 
-  const stop = useCallback(() => {
-    setState(prev => ({ ...prev, isRunning: false }));
+  const start = useCallback(async (scenario?: SimulationScenario) => {
+    try {
+      const res = await fetch('/api/uwsc/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'start' }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setState(prev => ({
+          ...prev,
+          isRunning: true,
+          scenario: data.scenario,
+        }));
+      }
+    } catch (err) {
+      console.error('Error starting simulation:', err);
+    }
   }, []);
 
-  const changeScenario = useCallback((scenario: SimulationScenario) => {
-    setState(prev => ({
-      ...initialSimulationState(scenario),
-      isRunning: prev.isRunning,
-    }));
+  const stop = useCallback(async () => {
+    try {
+      const res = await fetch('/api/uwsc/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'stop' }),
+      });
+      if (res.ok) {
+        setState(prev => ({
+          ...prev,
+          isRunning: false,
+          frames: [],
+          detections: [],
+          alerts: [],
+          occupancy: 0,
+        }));
+      }
+    } catch (err) {
+      console.error('Error stopping simulation:', err);
+    }
+  }, []);
+
+  const changeScenario = useCallback(async (scenario: SimulationScenario) => {
+    try {
+      const res = await fetch('/api/uwsc/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'changeScenario', scenario }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setState(prev => ({
+          ...prev,
+          scenario: data.scenario,
+          frames: [],
+          detections: [],
+          alerts: [],
+          occupancy: 0,
+        }));
+      }
+    } catch (err) {
+      console.error('Error changing scenario:', err);
+    }
   }, []);
 
   useEffect(() => {
-    if (state.isRunning) {
-      intervalRef.current = setInterval(() => {
-        setState(prev => tickSimulation(prev, DEMO_SENSOR_ID, DEMO_SITE_ID, DEMO_ORG_ID));
-      }, SAMPLE_RATE_MS);
-    } else {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [state.isRunning]);
+    // Poll immediately
+    pollState();
+    
+    // Poll every 500ms
+    const interval = setInterval(pollState, 500);
+    
+    return () => clearInterval(interval);
+  }, [pollState]);
 
   return { state, start, stop, changeScenario, SCENARIO_LABELS };
 }

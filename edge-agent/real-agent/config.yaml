@@ -1,0 +1,34 @@
+agent_id: "nexmon-agent-001"
+server_url: "http://localhost:3000"
+org_id: "demo-org"
+site_id: "demo-site"
+sensor_id: "nexmon-sensor-001"
+
+capture:
+  port: 5500
+  bind_address: "0.0.0.0"
+  bandwidth_mhz: 80
+  chip: "bcm43455c0"
+  channel: 157
+  core_mask: 1
+  nss_mask: 1
+  source_mac: ""
+
+ingestion:
+  batch_size: 10
+  send_interval_ms: 100
+  heartbeat_interval_s: 30
+  max_retries: 3
+  retry_delay_ms: 1000
+
+processing:
+  temporal_window_size: 30
+  normalize: true
+  compute_rf_fingerprint: true
+
+subcarriers:
+  20mhz: 64
+  40mhz: 128
+  80mhz: 256
+
+firmware_version: "real-agent-v1.0.0"

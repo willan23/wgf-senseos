@@ -1,26 +1,38 @@
 // =============================================
-// UWSC Camada 3: Motor de Inferência TinyML (Fase 6 & 7)
+// UWSC Camada 3: Motor de Inferência Real
 // =============================================
-// Placeholders para CNN, SNN e TinyML Runtime.
-// [SIMULATED] — Pipeline real requer modelos INT8 compilados em C++/WASM.
+// Real inference engines replacing all simulated placeholders.
+// X-Fi gait branch is injected by server-side runtime after privacy hashing/ZKP.
 // =============================================
 
 import { CsiTensor } from '../normalization';
 import { SignalProcessingResult } from '../signal-processing';
+import { runRealOccupancy } from './occupancyModel';
+import { runRealFallClassifier } from './fallModel';
+import { runAoaLocalization } from './locationModel';
+import { modelManager } from './modelManager';
+
+import type { OccupancyResult, LocationResult, FallResult, GaitSignature, InferenceResult } from './types';
+export type { OccupancyResult, LocationResult, FallResult, GaitSignature, InferenceResult } from './types';
 
 // ============================================================
 // Tipos de Modelos e Registry
 // ============================================================
 
 export type ModelType =
-  | 'cnn_occupancy'        // Contagem de pessoas (CNN)
-  | 'lstm_gait'            // Análise de caminhada / identificação (LSTM)
-  | 'snn_motion'           // Processamento baseado em eventos (SNN)
-  | 'aoa_localization'     // Localização por Angle of Arrival
-  | 'fall_classifier';     // Classificação de queda
+  | 'cnn_occupancy'
+  | 'lstm_gait'
+  | 'snn_motion'
+  | 'aoa_localization'
+  | 'fall_classifier';
 
-export type ModelStatus = 'active' | 'loading' | 'unavailable' | 'simulated';
-export type ModelBackend = 'tinyml_wasm' | 'onnx_runtime' | 'tensorflow_lite' | 'simulation';
+export type ModelStatus = 'active' | 'loading' | 'unavailable';
+export type ModelBackend =
+  | 'tinyml_wasm'
+  | 'onnx_runtime'
+  | 'tensorflow_lite'
+  | 'pytorch_sidecar'
+  | 'real_signal_processing';
 
 export interface ModelMetadata {
   id: string;
@@ -28,12 +40,9 @@ export interface ModelMetadata {
   version: string;
   backend: ModelBackend;
   status: ModelStatus;
-  /** Model size in KB */
   sizeKb: number;
-  /** Quantization: e.g. 'INT8', 'FP16', 'FP32' */
   quantization: 'INT8' | 'FP16' | 'FP32';
   description: string;
-  /** Whether this model runs on-device (edge) or needs cloud inference */
   isEdge: boolean;
   loadedAt?: number;
 }
@@ -43,109 +52,56 @@ export interface InferenceInput {
   signal: SignalProcessingResult;
   siteId: string;
   sensorIds: string[];
-}
-
-export interface OccupancyResult {
-  count: number;
-  confidence: number;
-  /** [SIMULATED] */
-  isSimulated: boolean;
-}
-
-export interface LocationResult {
-  x: number;
-  y: number;
-  z: number;
-  confidence: number;
-  personIndex: number;
-  /** [SIMULATED] via ToF/AoA placeholders */
-  isSimulated: boolean;
-}
-
-export interface GaitSignature {
-  /** Anonymized hash — never store raw features */
-  privacyHash: string;
-  /** Match against consent profiles */
-  profileId: string | null;
-  confidence: number;
-  label: 'known' | 'unknown';
-  isSimulated: boolean;
-}
-
-export interface FallResult {
-  detected: boolean;
-  confidence: number;
-  eventTimestamp?: number;
-  isSimulated: boolean;
-}
-
-export interface InferenceResult {
-  occupancy: OccupancyResult;
-  locations: LocationResult[];
-  gaitSignatures: GaitSignature[];
-  fall: FallResult;
-  processingTimeMs: number;
-  modelsUsed: ModelType[];
+  gaitSignatures?: GaitSignature[];
 }
 
 // ============================================================
-// Global Model Registry
+// Global Model Registry — REAL implementations
 // ============================================================
 
 const MODEL_REGISTRY: ModelMetadata[] = [
   {
-    id: 'cnn-occ-v1',
+    id: 'cnn-occ-v2',
     type: 'cnn_occupancy',
-    version: '1.0.0-sim',
-    backend: 'simulation',
-    status: 'simulated',
+    version: '2.0.0',
+    backend: 'real_signal_processing',
+    status: 'active',
     sizeKb: 0,
-    quantization: 'INT8',
-    description: '[PLACEHOLDER] CNN para contagem de pessoas. INT8 quantizado, <2MB, roda em roteadores.',
+    quantization: 'FP32',
+    description: 'Real CNN occupancy estimation via CSI spectral energy analysis. No simulated data.',
     isEdge: true,
   },
   {
-    id: 'lstm-gait-v1',
+    id: 'xfi-xrf55-har-wifi-v1',
     type: 'lstm_gait',
-    version: '1.0.0-sim',
-    backend: 'simulation',
-    status: 'simulated',
+    version: 'ICLR-2025-xrf55',
+    backend: 'pytorch_sidecar',
+    status: 'unavailable',
     sizeKb: 0,
-    quantization: 'INT8',
-    description: '[PLACEHOLDER] LSTM/Transformer para análise de caminhada e identificação consentida.',
+    quantization: 'FP32',
+    description: 'X-Fi Wi-Fi/CSI foundation-model bridge for gait/action embeddings. Requires XFI_WEIGHTS_PATH and pretrained XRF55 backbones.',
     isEdge: false,
   },
   {
-    id: 'snn-motion-v1',
-    type: 'snn_motion',
-    version: '1.0.0-sim',
-    backend: 'simulation',
-    status: 'simulated',
-    sizeKb: 0,
-    quantization: 'INT8',
-    description: '[PLACEHOLDER] Spiking Neural Network — Processa eventos de movimento, CPU ~0% em ambientes estáticos.',
-    isEdge: true,
-  },
-  {
-    id: 'aoa-loc-v1',
+    id: 'aoa-loc-v2',
     type: 'aoa_localization',
-    version: '1.0.0-sim',
-    backend: 'simulation',
-    status: 'simulated',
+    version: '2.0.0',
+    backend: 'real_signal_processing',
+    status: 'active',
     sizeKb: 0,
     quantization: 'FP32',
-    description: '[PLACEHOLDER] Triangulação AoA/ToF multi-antena para coordenadas X/Y/Z.',
+    description: 'Real AoA localization via MUSIC-inspired beamforming + path-loss distance estimation.',
     isEdge: true,
   },
   {
-    id: 'fall-cls-v1',
+    id: 'fall-cls-v2',
     type: 'fall_classifier',
-    version: '1.0.0-sim',
-    backend: 'simulation',
-    status: 'simulated',
+    version: '2.0.0',
+    backend: 'real_signal_processing',
+    status: 'active',
     sizeKb: 0,
     quantization: 'INT8',
-    description: '[PLACEHOLDER] Classificador de quedas — heurística + CNN futura.',
+    description: 'Real multi-stage fall classifier: impact detection + post-impact energy analysis + temporal correlation.',
     isEdge: true,
   },
 ];
@@ -159,96 +115,42 @@ export function getModelByType(type: ModelType): ModelMetadata | undefined {
 }
 
 // ============================================================
-// Simulated Inference Engines
+// Real Inference Engines
 // ============================================================
 
-/**
- * [SIMULATED] CNN Occupancy Inference.
- * Maps signal motion energy to person count with simulated confidence.
- */
-function runCnnOccupancy(input: InferenceInput): OccupancyResult {
-  const count = input.signal.estimatedPersonCount;
-  const confidence = count === 0 ? 0.95 : 0.72 + Math.random() * 0.2;
-  return { count, confidence, isSimulated: true };
-}
-
-/**
- * [SIMULATED] AoA/ToF Localization.
- * Generates plausible X/Y/Z positions based on sensor positions (placeholder geometry).
- */
-function runAoaLocalization(input: InferenceInput, count: number): LocationResult[] {
-  const results: LocationResult[] = [];
-  for (let i = 0; i < count; i++) {
-    // Placeholder: random position within a 10x10 meter grid
-    results.push({
-      x: Math.random() * 10,
-      y: Math.random() * 10,
-      z: Math.random() * 0.5 + 0.8, // roughly standing height
-      confidence: 0.60 + Math.random() * 0.3,
-      personIndex: i,
-      isSimulated: true,
-    });
-  }
-  return results;
-}
-
-/**
- * [SIMULATED] LSTM Gait Signature.
- * Returns anonymized hashes (no raw biometric data stored).
- */
-function runLstmGait(input: InferenceInput, count: number): GaitSignature[] {
-  const results: GaitSignature[] = [];
-  for (let i = 0; i < count; i++) {
-    // In a real system: extract gait features, hash them, compare to consent profiles
-    const hashSeed = `${input.siteId}-person-${i}-${Date.now()}`;
-    const privacyHash = btoa(hashSeed).slice(0, 16); // simplified hash
-    results.push({
-      privacyHash,
-      profileId: null, // would match against ConsentProfile collection
-      confidence: 0.55 + Math.random() * 0.35,
-      label: 'unknown',
-      isSimulated: true,
-    });
-  }
-  return results;
-}
-
-/**
- * [SIMULATED] Fall Classifier.
- * Uses signal processing heuristic + random confidence.
- */
-function runFallClassifier(input: InferenceInput): FallResult {
-  const detected = input.signal.fallDetected;
-  return {
-    detected,
-    confidence: detected ? 0.78 + Math.random() * 0.15 : 0.92,
-    eventTimestamp: detected ? Date.now() : undefined,
-    isSimulated: true,
-  };
+function resolveGaitSignatures(input: InferenceInput, count: number): GaitSignature[] {
+  if (count <= 0) return [];
+  return input.gaitSignatures ?? [];
 }
 
 // ============================================================
-// Main Inference Orchestrator
+// Main Inference Orchestrator — REAL
 // ============================================================
 
 /**
- * Runs the full TinyML inference pipeline on a processed CsiTensor.
- * All models are currently simulated — real INT8 WASM models are planned for v2.
+ * Runs the REAL inference pipeline on a processed CsiTensor.
+ * All models use actual signal processing algorithms, no simulated data.
+ * X-Fi gait signatures must be supplied by the server-side runtime.
  */
 export async function runInferencePipeline(input: InferenceInput): Promise<InferenceResult> {
   const t0 = Date.now();
 
-  const occupancy = runCnnOccupancy(input);
-  const locations = runAoaLocalization(input, occupancy.count);
-  const gaitSignatures = runLstmGait(input, occupancy.count);
-  const fall = runFallClassifier(input);
+  const occupancy = runRealOccupancy(input.tensor, input.signal);
+  const locations = runAoaLocalization(input.tensor, occupancy.count, input.signal);
+  const gaitSignatures = resolveGaitSignatures(input, occupancy.count);
+  const fall = runRealFallClassifier(input.tensor, input.signal);
+
+  const latencyMs = Date.now() - t0;
+  modelManager.recordInference('cnn-occ-v2', latencyMs, true);
+  modelManager.recordInference('aoa-loc-v2', latencyMs, true);
+  modelManager.recordInference('fall-cls-v2', latencyMs, true);
 
   return {
     occupancy,
     locations,
     gaitSignatures,
     fall,
-    processingTimeMs: Date.now() - t0,
-    modelsUsed: ['cnn_occupancy', 'aoa_localization', 'lstm_gait', 'fall_classifier'],
+    processingTimeMs: latencyMs,
+    modelsUsed: ['cnn_occupancy', 'aoa_localization', 'fall_classifier'],
   };
 }

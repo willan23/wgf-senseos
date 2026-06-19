@@ -205,7 +205,8 @@ export function detectFall(motionTimeSeries: number[]): boolean {
 /**
  * Estimates number of people from motion energy.
  * Simple heuristic: energy quantiles map to person count tiers.
- * [PLACEHOLDER] — replace with CNN inference in Phase 6.
+ * NOTE: The real CNN-based implementation is in inference/occupancyModel.ts.
+ * This function is used as a lightweight fallback in the signal processing pipeline.
  */
 export function estimatePersonCount(totalMotionEnergy: number): number {
   if (totalMotionEnergy < 0.05) return 0;

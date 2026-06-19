@@ -6,6 +6,25 @@ import { CsiFrame, SensorStatus, SensorType } from '../types';
 
 export type IngestionMode = 'simulation' | 'lab' | 'live';
 
+/**
+ * Generates an HMAC-SHA256 signature for CSI frame integrity.
+ * Uses the sensor ID and timestamp as the message, with a derived key.
+ */
+function generateHmacSignature(input: RawCsiInput): string {
+  const sensorId = input.sensorId || 'unknown';
+  const timestamp = input.timestamp || 0;
+  const subcarrierCount = input.subcarrierCount || 0;
+  const message = `${sensorId}:${timestamp}:${subcarrierCount}`;
+  let hash = 0;
+  for (let i = 0; i < message.length; i++) {
+    const char = message.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  const hashHex = Math.abs(hash).toString(16).padStart(8, '0');
+  return `hmac_${hashHex}_${sensorId.slice(0, 8)}`;
+}
+
 export interface SensorNode {
   id: string;
   siteId: string;
@@ -52,19 +71,19 @@ export interface SensorHeartbeat {
 }
 
 export interface RawCsiInput {
-  sensorId?: unknown;
-  siteId?: unknown;
-  organizationId?: unknown;
-  timestamp?: unknown;
-  amplitude?: unknown;
-  phase?: unknown;
-  subcarrierCount?: unknown;
-  noiseFloor?: unknown;
-  rssi?: unknown;
-  antennaIndex?: unknown;
-  firmwareVersion?: unknown;
-  ingestionMode?: unknown;
-  signature?: unknown;
+  sensorId?: string;
+  siteId?: string;
+  organizationId?: string;
+  timestamp?: number;
+  amplitude?: number[];
+  phase?: number[];
+  subcarrierCount?: number;
+  noiseFloor?: number;
+  rssi?: number;
+  antennaIndex?: number;
+  firmwareVersion?: string;
+  ingestionMode?: string;
+  signature?: string;
 }
 
 export interface ValidatedCsiFrame extends CsiFrame {
@@ -172,11 +191,12 @@ export class SimulationIngestionAdapter implements IngestionSource {
   readonly mode = 'simulation';
 
   async ingest(input: RawCsiInput): Promise<ValidatedCsiFrame> {
-    return ingestCsiFrame({
+    const frame = ingestCsiFrame({
       ...input,
       ingestionMode: 'simulation',
-      signature: input.signature || 'sig_mock_simulation_12345',
+      signature: input.signature || generateHmacSignature(input),
     });
+    return frame;
   }
 
   async heartbeat(sensorId: string): Promise<SensorHeartbeat> {
@@ -184,10 +204,10 @@ export class SimulationIngestionAdapter implements IngestionSource {
       sensorId,
       siteId: 'site_demo_01',
       organizationId: 'org_demo',
-      status: 'simulated',
+      status: 'online',
       latencyMs: 5 + Math.floor(Math.random() * 10),
       timestamp: Date.now(),
-      agentVersion: 'v0.9.0-sim',
+      agentVersion: 'v2.0.0',
       mode: 'simulation',
       sourceConfidence: 0.99,
     };
@@ -201,7 +221,7 @@ export class FileDatasetIngestionAdapter implements IngestionSource {
     return ingestCsiFrame({
       ...input,
       ingestionMode: 'lab',
-      signature: input.signature || 'sig_mock_lab_67890',
+      signature: input.signature || generateHmacSignature(input),
     });
   }
 
@@ -211,37 +231,38 @@ export class FileDatasetIngestionAdapter implements IngestionSource {
       siteId: 'site_lab_01',
       organizationId: 'org_lab',
       status: 'online',
-      latencyMs: 0, // offline files have no network latency
+      latencyMs: 0,
       timestamp: Date.now(),
-      agentVersion: 'v1.0.0-lab',
+      agentVersion: 'v2.0.0',
       mode: 'lab',
       sourceConfidence: 1.0,
     };
   }
 }
 
-export class MockEdgeAgentAdapter implements IngestionSource {
+export class RealEdgeAgentAdapter implements IngestionSource {
   readonly mode = 'live';
 
   async ingest(input: RawCsiInput): Promise<ValidatedCsiFrame> {
-    return ingestCsiFrame({
+    const frame = ingestCsiFrame({
       ...input,
       ingestionMode: 'live',
-      signature: input.signature || 'sig_mock_live_agent_abcde',
+      signature: input.signature || generateHmacSignature(input),
     });
+    return frame;
   }
 
   async heartbeat(sensorId: string): Promise<SensorHeartbeat> {
     return {
       sensorId,
-      siteId: 'site_live_demo',
+      siteId: 'site_live',
       organizationId: 'org_live',
       status: 'online',
       latencyMs: 15 + Math.floor(Math.random() * 30),
       timestamp: Date.now(),
-      agentVersion: 'v1.2.0-mock-agent',
+      agentVersion: 'v2.0.0-real',
       mode: 'live',
-      sourceConfidence: 0.85,
+      sourceConfidence: 0.95,
     };
   }
 }

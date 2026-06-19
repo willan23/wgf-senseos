@@ -238,7 +238,7 @@ export default function UwscPipelinePage() {
               <div className="uwsc-model-name">{m.id}</div>
               <div className="uwsc-model-desc">{m.description}</div>
               <div className="uwsc-model-tags">
-                <span className={`uwsc-tag ${m.status === 'simulated' ? 'tag-sim' : 'tag-active'}`}>{m.status}</span>
+                <span className={`uwsc-tag ${m.status === 'active' ? 'tag-active' : 'tag-sim'}`}>{m.status}</span>
                 <span className="uwsc-tag tag-quant">{m.quantization}</span>
                 <span className="uwsc-tag tag-backend">{m.backend}</span>
                 {m.isEdge && <span className="uwsc-tag tag-edge">edge</span>}

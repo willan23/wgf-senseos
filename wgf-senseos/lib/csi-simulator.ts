@@ -1,7 +1,13 @@
 /**
- * WGF SenseOS — CSI Simulator
- * Generates synthetic Channel State Information data for demo purposes.
- * All data is clearly labeled as simulated.
+ * WGF SenseOS — CSI Simulator (DEMO FALLBACK ONLY)
+ * Generates synthetic Channel State Information data for demo/preview purposes ONLY.
+ * 
+ * THIS IS NOT PRODUCTION CODE. Real CSI data comes from:
+ * - edge-agent/real-agent/ (Nexmon CSI via UDP port 5500)
+ * - /api/uwsc/ingest endpoint
+ * 
+ * This simulator is ONLY used when no real edge agent is connected.
+ * All data is clearly labeled as simulated (isSimulated: true).
  * 
  * Architecture: Camada 1 stub — prepared for real CSI ingestion via Edge Agent.
  */

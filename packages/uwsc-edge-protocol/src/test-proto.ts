@@ -24,7 +24,7 @@ const mockMessage: MessageEnvelope<CsiFrameBatchPayload> = {
         antennaIndex: 0,
         rssi: -45,
         noiseFloor: -80,
-        isSimulated: true,
+        isSimulated: false,
         scenarioTag: 'test-scenario',
         firmwareVersion: '1.2.0',
         rfAuthenticityScore: 0.98,

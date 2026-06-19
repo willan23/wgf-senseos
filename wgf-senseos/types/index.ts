@@ -97,6 +97,7 @@ export interface Sensor {
   x: number;       // percentage position on map
   y: number;
   macAddress?: string;
+  ipAddress?: string;
   firmwareVersion?: string;
   lastHeartbeatAt?: number;
   createdAt: number;

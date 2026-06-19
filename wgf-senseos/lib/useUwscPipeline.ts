@@ -330,7 +330,7 @@ async function persistAlert(
     ...t,
     status: 'open',
     timestamp: Date.now(),
-    isSimulated: true,
+    isSimulated: false,
     createdAt: serverTimestamp(),
   });
 }

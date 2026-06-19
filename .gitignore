@@ -51,3 +51,21 @@ yarn-error.log*
 *-debug.log
 .runtime/
 wgf-senseos/apphosting.yaml
+
+# Reference Repositories
+Awesome-WiFi-CSI-Sensing-main/
+HoloLLM-main/
+IoT-Agent-main/
+Ising-Decoding-main/
+P2SLAM-sim-main/
+WAIS-master/
+X-Fi-main/
+nexmon_csi-master/
+
+# Python Caches
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache/
+

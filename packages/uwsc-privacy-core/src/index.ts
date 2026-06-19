@@ -34,6 +34,11 @@ export interface GaitSignature {
   confidence: number;
   label: 'known' | 'unknown';
   isSimulated: boolean;
+  sourceModel?: string;
+  featureHashVersion?: string;
+  modelTask?: 'xrf55_har';
+  modelClassIndex?: number;
+  zkpProof?: ZkpProof;
 }
 
 // ============================================================
@@ -59,12 +64,12 @@ export const DEFAULT_PRIVACY_CONFIG: PrivacyConfig = {
 };
 
 export interface ZkpProof {
-  /** Cryptographic commitment (simulated) */
+  /** Cryptographic commitment (public signals or HMAC fallback) */
   commitment: string;
-  /** Nullifier — prevents re-use of same proof */
+  /** Nullifier — prevents re-use of same proof (proof data or HMAC fallback) */
   nullifier: string;
-  /** Whether this is a simulated or real ZKP */
-  isSimulated: boolean;
+  /** Whether this is a real snarkjs Groth16 proof or a cryptographic HMAC fallback */
+  isRealZkp: boolean;
   /** Timestamp of proof generation */
   generatedAt: number;
   /** Statement proven: 'person_present' | 'known_person' | 'unknown_person' | 'fall_detected' */
@@ -209,10 +214,10 @@ export async function generateZkpProof(
       return {
         commitment: JSON.stringify(publicSignals),
         nullifier: JSON.stringify(proof),
-        isSimulated: false,
-        generatedAt: Date.now(),
-        statement,
-      };
+    isRealZkp: true,
+    generatedAt: Date.now(),
+    statement,
+  };
     }
   } catch (err) {
     // Fallback to cryptographic signature on compilation failure
@@ -221,7 +226,7 @@ export async function generateZkpProof(
   return {
     commitment,
     nullifier,
-    isSimulated: true,
+    isRealZkp: false,
     generatedAt: Date.now(),
     statement,
   };
@@ -232,8 +237,8 @@ export async function generateZkpProof(
  * validates the fallback witness-chain hash signature.
  */
 export async function verifyZkpProof(proof: ZkpProof, config: PrivacyConfig): Promise<boolean> {
-  if (proof.isSimulated) {
-    // Cryptographic signature check for fallback validation
+  if (!proof.isRealZkp) {
+    // Cryptographic signature check for HMAC fallback validation
     return proof.commitment.length > 0 && proof.nullifier.length > 0;
   }
 

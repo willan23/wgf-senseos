@@ -21,10 +21,10 @@ function SparkLine({ data, color = '#00d4ff', height = 40 }: { data: number[]; c
   }).join(' ');
 
   return (
-    <svg width={w} height={h} style={{ overflow: 'visible' }}>
+    <svg width={w} height={h} style={{ overflow: 'visible', filter: 'drop-shadow(0px 1px 4px ' + color + '66)' }}>
       <defs>
         <linearGradient id={`sg-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="0%" stopColor={color} stopOpacity="0.4" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
@@ -32,7 +32,7 @@ function SparkLine({ data, color = '#00d4ff', height = 40 }: { data: number[]; c
         points={points}
         fill="none"
         stroke={color}
-        strokeWidth="1.5"
+        strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -47,26 +47,39 @@ function SparkLine({ data, color = '#00d4ff', height = 40 }: { data: number[]; c
 // ---- CSI Amplitude visualizer ----
 function CsiVisualizer({ amplitudes }: { amplitudes: number[] }) {
   if (!amplitudes.length) return (
-    <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
-      Aguardando dados...
+    <div style={{ height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+      Aguardando telemetria em tempo real...
     </div>
   );
   const max = Math.max(...amplitudes, 0.001);
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 1.5, height: 60, padding: '4px 0' }}>
-      {amplitudes.map((v, i) => (
-        <div
-          key={i}
-          style={{
-            flex: 1,
-            height: `${(v / max) * 100}%`,
-            minHeight: 2,
-            borderRadius: '2px 2px 0 0',
-            background: `hsl(${190 + v * 80}, 90%, ${40 + v * 30}%)`,
-            transition: 'height 0.4s ease',
-          }}
-        />
-      ))}
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-end',
+      gap: 2,
+      height: 70,
+      background: 'rgba(2, 8, 23, 0.5)',
+      borderRadius: 10,
+      padding: '6px 16px',
+      border: '1px solid rgba(255, 255, 255, 0.04)'
+    }}>
+      {amplitudes.map((v, i) => {
+        const hPercent = (v / max) * 100;
+        return (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              height: `${hPercent}%`,
+              minHeight: 3,
+              borderRadius: '4px 4px 0 0',
+              background: `linear-gradient(to top, rgba(0, 212, 255, 0.3), hsl(${190 + (v / max) * 80}, 90%, 55%))`,
+              boxShadow: hPercent > 60 ? `0 0 6px hsl(${190 + (v / max) * 80}, 90%, 55%)` : 'none',
+              transition: 'height 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -79,29 +92,46 @@ function MetricCard({
   trend?: number; sparkData?: number[];
 }) {
   return (
-    <div className="metric-card animate-fade-in" style={{ position: 'relative', overflow: 'hidden' }}>
+    <div className="metric-card animate-fade-in" style={{
+      position: 'relative',
+      overflow: 'hidden',
+      border: `1px solid ${color}22`,
+      background: `linear-gradient(135deg, rgba(15, 29, 53, 0.75), rgba(21, 34, 64, 0.45))`,
+      boxShadow: `0 4px 24px rgba(0, 0, 0, 0.3), inset 0 0 12px ${color}08`,
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div>
-          <div className="metric-label">{label}</div>
-          <div className="metric-value" style={{ color }}>
+          <div className="metric-label" style={{ color: 'var(--text-secondary)' }}>{label}</div>
+          <div className="metric-value" style={{ color, fontSize: 34, textShadow: `0 0 20px ${color}33`, marginTop: 4 }}>
             {value}
             {unit && <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>{unit}</span>}
           </div>
         </div>
         <div style={{
-          width: 44, height: 44, borderRadius: 10,
-          background: color + '18', border: `1px solid ${color}33`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
+          width: 46, height: 46, borderRadius: 12,
+          background: color + '12', border: `1.5px solid ${color}33`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
+          boxShadow: `0 0 15px ${color}1a`,
         }}>{icon}</div>
       </div>
-      {sparkData && sparkData.length > 1 && (
-        <SparkLine data={sparkData} color={color} height={36} />
-      )}
-      {trend !== undefined && (
-        <div style={{ marginTop: 6, fontSize: 12, color: trend >= 0 ? 'var(--status-online)' : 'var(--status-offline)' }}>
-          {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}% vs. última hora
-        </div>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 16 }}>
+        {sparkData && sparkData.length > 1 ? (
+          <SparkLine data={sparkData} color={color} height={36} />
+        ) : <div style={{ height: 36 }} />}
+        {trend !== undefined && (
+          <div style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: trend >= 0 ? 'var(--status-online)' : 'var(--status-offline)',
+            background: trend >= 0 ? 'rgba(16,217,138,0.08)' : 'rgba(239,68,68,0.08)',
+            padding: '2px 8px',
+            borderRadius: 6,
+            border: `1px solid ${trend >= 0 ? 'rgba(16,217,138,0.2)' : 'rgba(239,68,68,0.2)'}`
+          }}>
+            {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -130,7 +160,7 @@ export default function DashboardPage() {
   const latestFrame = state.frames[state.frames.length - 1];
   const latestDetection = state.detections[state.detections.length - 1];
   const openAlerts = state.alerts.filter(a => a.status === 'open');
-  const sensorsOnline = state.isRunning ? 2 : 0;
+  const sensorsOnline = state.sensorList?.filter((s: any) => s.status === 'online').length || 0;
   const params = SCENARIOS[state.scenario];
 
   const greeting = (() => {
@@ -141,33 +171,41 @@ export default function DashboardPage() {
   })();
 
   return (
-    <div style={{ flex: 1, padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div className="bg-grid bg-radial-glow animate-fade-in" style={{ flex: 1, padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 24, minHeight: '100vh', position: 'relative' }}>
 
       {/* ---- Header ---- */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16, zIndex: 10 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.03em', marginBottom: 4 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, letterSpacing: '-0.03em', marginBottom: 4, background: 'linear-gradient(to right, #ffffff, #94a3b8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
             {greeting}, {senseUser?.displayName?.split(' ')[0] || 'Utilizador'} 👋
           </h1>
-          <p style={{ fontSize: 14, color: 'var(--text-secondary)' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>
             {new Date().toLocaleDateString('pt-PT', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="sim-mode-banner">⚡ MODO SIMULADO</span>
+          {sensorsOnline > 0 ? (
+            <span className="sim-mode-banner" style={{ background: 'rgba(16, 217, 138, 0.1)', border: '1px solid rgba(16, 217, 138, 0.4)', color: '#10d98a', boxShadow: '0 0 12px rgba(16, 217, 138, 0.15)' }}>
+              🟢 REDE MESH ATIVA ({sensorsOnline} nós)
+            </span>
+          ) : (
+            <span className="sim-mode-banner" style={{ border: '1px solid rgba(0, 212, 255, 0.4)', boxShadow: '0 0 12px rgba(0, 212, 255, 0.15)' }}>
+              ⚡ AGUARDANDO BORDAS
+            </span>
+          )}
 
           {/* Mode toggle */}
           <div style={{
-            display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border-card)',
-            borderRadius: 8, padding: 3, gap: 2,
+            display: 'flex', background: 'rgba(15, 29, 53, 0.65)', border: '1px solid rgba(255, 255, 255, 0.05)',
+            borderRadius: 10, padding: 3, gap: 2, backdropFilter: 'blur(8px)'
           }}>
             {(['residential', 'corporate'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)} style={{
-                padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                background: mode === m ? 'rgba(0,212,255,0.15)' : 'transparent',
+                padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: mode === m ? 'rgba(0,212,255,0.12)' : 'transparent',
                 color: mode === m ? 'var(--accent-primary)' : 'var(--text-muted)',
-                transition: 'all 0.15s ease',
+                transition: 'all 0.2s ease',
               }}>
                 {m === 'residential' ? '🏠 Residencial' : '🏢 Corporativo'}
               </button>
@@ -178,21 +216,24 @@ export default function DashboardPage() {
 
       {/* ---- Simulation Control ---- */}
       <div className="glass-card" style={{
-        padding: '16px 20px',
-        borderColor: state.isRunning ? 'rgba(0,212,255,0.3)' : 'var(--border-card)',
-        background: state.isRunning ? 'rgba(0,212,255,0.04)' : 'var(--bg-glass)',
+        padding: '20px 24px',
+        borderColor: state.isRunning ? 'var(--accent-primary)' : 'var(--border-card)',
+        boxShadow: state.isRunning ? '0 0 24px rgba(0, 212, 255, 0.12)' : 'var(--shadow-card)',
+        background: 'linear-gradient(135deg, rgba(15, 29, 53, 0.8), rgba(2, 8, 23, 0.8))',
+        borderWidth: state.isRunning ? '1.5px' : '1px',
+        zIndex: 10,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {state.isRunning && <div className="status-dot online" />}
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>
-                Motor de Simulação CSI
+                Consola de Controle de Cenários (UWSC)
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                {state.isRunning
-                  ? `Cenário ativo: ${SCENARIO_LABELS[state.scenario]} · ${state.frames.length} frames · t=${state.t.toFixed(1)}s`
-                  : 'Clica em Iniciar para simular dados CSI em tempo real'}
+                {sensorsOnline > 0
+                  ? `Cenário ativo: ${SCENARIO_LABELS[state.scenario]} · Monitorizando ${sensorsOnline} agente(s) real(ais) de rede.`
+                  : 'Aguardando que os Edge Agents se conectem. Execute o script de borda no terminal.'}
               </div>
             </div>
           </div>
@@ -267,7 +308,7 @@ export default function DashboardPage() {
         />
         <MetricCard
           label="Confiança IA"
-          value={state.isRunning ? `${(params.confidence * 100).toFixed(0)}%` : '—'}
+          value={state.isRunning ? `${(params?.confidence * 100 || 90).toFixed(0)}%` : '—'}
           icon="🤖"
           color="#7c3aed"
         />
@@ -459,6 +500,88 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* ---- Active Mesh Devices & IP Proximity Localization ---- */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
+        {/* Connected Sensors Panel */}
+        <div className="glass-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700 }}>🛜 Dispositivos Conectados (Mesh Network)</h2>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sensorsOnline} ativos</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            {state.sensorList && state.sensorList.length > 0 ? (
+              state.sensorList.map((sensor: any) => (
+                <div key={sensor.id} style={{
+                  padding: 12,
+                  borderRadius: 8,
+                  background: 'rgba(2, 8, 23, 0.4)',
+                  border: '1px solid rgba(255, 255, 255, 0.04)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 10,
+                  transition: 'all 0.2s ease',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>📡</span>
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{sensor.name}</div>
+                        <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{sensor.id}</div>
+                      </div>
+                    </div>
+                    <span className="badge badge-green" style={{ fontSize: 9 }}>ONLINE</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 10 }}>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Endereço IP:</span>
+                      <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', marginTop: 2 }}>{sensor.ipAddress}</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Uptime:</span>
+                      <div style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', marginTop: 2 }}>{sensor.uptimeSeconds}s</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>CPU:</span>
+                      <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>{sensor.cpuUsage?.toFixed(1)}%</div>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Memória:</span>
+                      <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>{sensor.memoryUsage?.toFixed(0)} MB</div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ gridColumn: '1 / -1', padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                Sem conexões de borda reais. Corra o mock-agent no terminal para conectar a telemetria.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* IP Proximity Card */}
+        <div className="glass-card" style={{ padding: 20, border: '1px solid rgba(0, 212, 255, 0.15)' }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>📍 Localização IP (Proximidade)</h2>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
+            Como os endereços IP (Camada 3) não possuem coordenadas físicas nativas, o WGF SenseOS mapeia a subrede/IP de cada roteador/sensor a uma **Zona Física** específica (ex: Sala, Quarto).
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 11 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)' }}>127.0.0.1 (Local)</span>
+              <span style={{ fontWeight: 600 }}>Zona A (Sala)</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)' }}>192.168.1.15</span>
+              <span style={{ fontWeight: 600 }}>Zona B (Quarto)</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>10.0.0.0/24</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Área Corporativa</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

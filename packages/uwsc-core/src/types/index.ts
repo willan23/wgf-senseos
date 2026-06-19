@@ -72,8 +72,8 @@ export interface Zone {
   createdAt: number;
 }
 
-export type SensorStatus = 'online' | 'offline' | 'warning' | 'simulated';
-export type SensorType = 'wifi_csi' | 'simulated';
+export type SensorStatus = 'online' | 'offline' | 'warning';
+export type SensorType = 'wifi_csi';
 
 export interface Sensor {
   id: string;
@@ -86,7 +86,11 @@ export interface Sensor {
   x: number;
   y: number;
   macAddress?: string;
+  ipAddress?: string;
   firmwareVersion?: string;
+  cpuUsage?: number;
+  memoryUsage?: number;
+  uptimeSeconds?: number;
   lastHeartbeatAt?: number;
   createdAt: number;
   updatedAt: number;
