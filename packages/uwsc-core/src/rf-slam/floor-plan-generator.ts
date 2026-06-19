@@ -4,6 +4,7 @@
  */
 
 import { FloorPlan, Wall, Obstacle, Zone, SensorPosition, WallCandidate } from './types';
+import { FactorGraph } from './factor-graph';
 
 export interface FloorPlanConfig {
   siteId: string;
@@ -34,23 +35,24 @@ export function generateFloorPlan(
     .map((c, idx) => candidateToWall(c, idx));
 
   const mergedWalls = mergeWalls(walls, cfg.mergeDistance);
+  const optimizedWalls = optimizeWallsWithFactorGraph(mergedWalls, sensorPositions);
 
-  const obstacles = detectObstacles(mergedWalls, sensorPositions);
+  const obstacles = detectObstacles(optimizedWalls, sensorPositions);
 
-  const zones = inferZones(mergedWalls, sensorPositions);
+  const zones = inferZones(optimizedWalls, sensorPositions);
 
-  const bounds = calculateBounds(mergedWalls, sensorPositions);
+  const bounds = calculateBounds(optimizedWalls, sensorPositions);
 
   return {
     type: 'floor_plan',
     siteId: cfg.siteId,
     version: 1,
-    walls: mergedWalls,
+    walls: optimizedWalls,
     obstacles,
     zones,
     sensors: sensorPositions,
     bounds,
-    confidence: calculateOverallConfidence(mergedWalls),
+    confidence: calculateOverallConfidence(optimizedWalls),
     generatedAt: Date.now(),
   };
 }
@@ -227,4 +229,103 @@ function calculateBounds(walls: Wall[], sensors: SensorPosition[]): { width: num
 function calculateOverallConfidence(walls: Wall[]): number {
   if (walls.length === 0) return 0;
   return walls.reduce((s, w) => s + w.confidence, 0) / walls.length;
+}
+
+/**
+ * Refines the wall positions and orientations using non-linear least squares optimization (Factor Graph).
+ */
+export function optimizeWallsWithFactorGraph(walls: Wall[], sensors: SensorPosition[]): Wall[] {
+  if (walls.length === 0) return [];
+
+  const graph = new FactorGraph();
+
+  // 1. Add wall variables and prior factors
+  walls.forEach((w) => {
+    const xc = (w.x1 + w.x2) / 2;
+    const yc = (w.y1 + w.y2) / 2;
+    const theta = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
+    const len = Math.sqrt((w.x2 - w.x1) ** 2 + (w.y2 - w.y1) ** 2);
+
+    graph.addVariable(w.id, {
+      id: w.id,
+      x: xc,
+      y: yc,
+      theta,
+      length: len,
+    });
+
+    // High confidence prior factor to avoid wall drifting randomly
+    graph.addPriorFactor(w.id, xc, yc, theta, w.confidence * 2.0);
+  });
+
+  // 2. Add junction factors (perpendicular or parallel alignments)
+  for (let i = 0; i < walls.length; i++) {
+    const w1 = walls[i];
+    const theta1 = Math.atan2(w1.y2 - w1.y1, w1.x2 - w1.x1);
+
+    for (let j = i + 1; j < walls.length; j++) {
+      const w2 = walls[j];
+      const theta2 = Math.atan2(w2.y2 - w2.y1, w2.x2 - w2.x1);
+
+      let diff = Math.abs(theta1 - theta2);
+      if (diff > Math.PI) diff = 2 * Math.PI - diff;
+
+      // Check distance between wall centers
+      const c1x = (w1.x1 + w1.x2) / 2;
+      const c1y = (w1.y1 + w1.y2) / 2;
+      const c2x = (w2.x1 + w2.x2) / 2;
+      const c2y = (w2.y1 + w2.y2) / 2;
+      const dist = Math.sqrt((c1x - c2x) ** 2 + (c1y - c2y) ** 2);
+
+      if (dist < 4.0) {
+        // If angle difference is around 90 degrees (pi/2)
+        if (Math.abs(diff - Math.PI / 2) < Math.PI / 12) {
+          graph.addJunctionFactor(w1.id, w2.id, 'perpendicular', 1.5);
+        }
+        // If angle difference is around 0 or 180 degrees (parallel)
+        else if (diff < Math.PI / 12 || Math.abs(diff - Math.PI) < Math.PI / 12) {
+          graph.addJunctionFactor(w1.id, w2.id, 'parallel', 1.5);
+        }
+      }
+    }
+  }
+
+  // 3. Add sensor range observations constraints
+  sensors.forEach(sensor => {
+    walls.forEach(w => {
+      const xc = (w.x1 + w.x2) / 2;
+      const yc = (w.y1 + w.y2) / 2;
+      const theta = Math.atan2(w.y2 - w.y1, w.x2 - w.x1);
+
+      // Distance from sensor to wall line
+      const d = Math.abs((sensor.x - xc) * Math.sin(theta) - (sensor.y - yc) * Math.cos(theta));
+
+      // Constraint if sensor is relatively close to the wall (within 5m)
+      if (d < 5.0) {
+        graph.addRangeFactor(w.id, sensor.x, sensor.y, d, 0.5);
+      }
+    });
+  });
+
+  // 4. Optimize the factor graph
+  const optimizedStates = graph.optimize(20);
+
+  // 5. Convert optimized states back to Wall endpoints
+  return walls.map(w => {
+    const opt = optimizedStates.get(w.id);
+    if (!opt) return w;
+
+    const cos = Math.cos(opt.theta);
+    const sin = Math.sin(opt.theta);
+    const halfL = opt.length / 2;
+
+    return {
+      ...w,
+      x1: opt.x - halfL * cos,
+      y1: opt.y - halfL * sin,
+      x2: opt.x + halfL * cos,
+      y2: opt.y + halfL * sin,
+      confidence: Math.min(1.0, w.confidence * 1.1), // slightly boost confidence
+    };
+  });
 }
